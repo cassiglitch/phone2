@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Number Sequence Generator</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Basic styling for progress bar */
+        #progressContainer {
+            width: 100%;
+            background-color: #f3f3f3;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        #progressBar {
+            height: 20px;
+            width: 0;
+            background-color: #4caf50;
+            text-align: center;
+            line-height: 20px;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Number Sequence Generator</h1>
+        <div class="input-section">
+            <label for="lengthInput">Sequence Length:</label>
+            <input type="number" id="lengthInput" value="7" min="1" max="100">
+
+            <label for="numberSetInput">Number Set (default: 0-9):</label>
+            <input type="text" id="numberSetInput" value="0123456789">
+
+            <label for="allowDuplicates">Allow Duplicate Characters:</label>
+            <input type="checkbox" id="allowDuplicates" checked>
+
+            <label for="fileNameInput">File Name:</label>
+            <input type="text" id="fileNameInput" value="phone_numbers_list.txt">
+
+            <button id="generateBtn">Generate Sequences</button>
+
+            <div id="loadingMessage" style="display:none;">Generating sequences, please wait...</div>
+            <div id="progressContainer" style="display:none;">
+                <div id="progressBar">0%</div>
+            </div>
+        </div>
+        <button id="downloadBtn" style="display:none;">Download</button>
+    </div>
+
+    <script>
+        const chunkSize = 1000; // Number of sequences per chunk
+        let generatedChunks = []; // Array to hold Blob chunks
+
+        // Function to generate all possible combinations of a given number set
+        function* generateCombinations(set, length, allowDuplicates) {
+            if (length === 1) {
+                yield* set;
+            } else {
+                for (const prefix of set) {
+                    const subset = allowDuplicates ? set : set.filter(char => char !== prefix);
+                    for (const suffix of generateCombinations(subset, length - 1, allowDuplicates)) {
+                        yield prefix + suffix;
+                    }
+                }
+            }
+        }
+
+        async function generateSequences(length, numberSet, allowDuplicates) {
+            const totalSequences = allowDuplicates ? Math.pow(numberSet.length, length) : factorial(numberSet.length) / factorial(numberSet.length - length);
+            let currentChunk = []; // Current chunk of sequences
+            const generator = generateCombinations(numberSet, length, allowDuplicates); // Generator for sequences
+
+            let i = 0;
+            for (const sequence of generator) {
+                currentChunk.push(sequence);
+
+                if (currentChunk.length >= chunkSize) {
+                    await saveChunk(currentChunk);
+                    currentChunk = []; // Reset for the next chunk
+                }
+
+                // Update progress bar
+                updateProgressBar(i + 1, totalSequences);
+
+                if (i % 1000 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+                i++;
+            }
+
+            if (currentChunk.length > 0) {
+                await saveChunk(currentChunk);
+            }
+        }
+
+        async function saveChunk(chunk) {
+            const content = chunk.join('\n') + '\n';
+            const blob = new Blob([content], { type: 'text/plain' });
+            generatedChunks.push(blob);
+        }
+
+        function updateProgressBar(current, total) {
+            const progressBar = document.getElementById('progressBar');
+            const percentage = Math.round((current / total) * 100);
+            progressBar.style.width = percentage + '%';
+            progressBar.textContent = percentage + '%';
+        }
+
+        function factorial(n) {
+            return n <= 1 ? 1 : n * factorial(n - 1);
+        }
+
+        document.getElementById('generateBtn').addEventListener('click', async function() {
+            const length = parseInt(document.getElementById('lengthInput').value);
+            const numberSet = document.getElementById('numberSetInput').value.split('');
+            const allowDuplicates = document.getElementById('allowDuplicates').checked;
+            const downloadBtn = document.getElementById('downloadBtn');
+            const loadingMessage = document.getElementById('loadingMessage');
+            const progressContainer = document.getElementById('progressContainer');
+
+            // Disable the generate button
+            this.disabled = true; 
+            generatedChunks = [];
+            downloadBtn.style.display = 'none'; // Hide download button initially
+            loadingMessage.style.display = 'block'; // Show loading message
+            progressContainer.style.display = 'block'; // Show progress container
+            updateProgressBar(0, allowDuplicates ? Math.pow(numberSet.length, length) : factorial(numberSet.length) / factorial(numberSet.length - length)); // Reset progress bar
+
+            await generateSequences(length, numberSet, allowDuplicates);
+
+            loadingMessage.style.display = 'none'; // Hide loading message
+            progressContainer.style.display = 'none'; // Hide progress container
+            downloadBtn.style.display = 'block'; // Show download button
+
+            // Re-enable the generate button
+            this.disabled = false; 
+        });
+
+        document.getElementById('downloadBtn').addEventListener('click', function() {
+            const fileName = document.getElementById('fileNameInput').value || 'phone_numbers_list.txt';
+            const combinedBlob = new Blob(generatedChunks, { type: 'text/plain' });
+            downloadFile(combinedBlob, fileName);
+        });
+
+        function downloadFile(blob, fileName) {
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+</body>
+</html>
