@@ -49,6 +49,7 @@
             </div>
         </div>
         <button id="downloadBtn" style="display:none;">Download</button>
+        <div id="warningMessage" style="color:red; display:none;">Note: Duplicates are allowed due to the small number set.</div>
     </div>
 
     <script>
@@ -70,7 +71,18 @@
         }
 
         async function generateSequences(length, numberSet, allowDuplicates) {
-            const totalSequences = allowDuplicates ? Math.pow(numberSet.length, length) : factorial(numberSet.length) / factorial(numberSet.length - length);
+            // If duplicates are disabled but the sequence length is greater than the number of unique characters
+            if (!allowDuplicates && length > numberSet.length) {
+                allowDuplicates = true;  // Force duplicates
+                document.getElementById('warningMessage').style.display = 'block'; // Show warning message
+            } else {
+                document.getElementById('warningMessage').style.display = 'none'; // Hide warning message
+            }
+
+            const totalSequences = allowDuplicates 
+                ? Math.pow(numberSet.length, length) 
+                : factorial(numberSet.length) / factorial(numberSet.length - length);
+
             let currentChunk = []; // Current chunk of sequences
             const generator = generateCombinations(numberSet, length, allowDuplicates); // Generator for sequences
 
@@ -117,7 +129,7 @@
         document.getElementById('generateBtn').addEventListener('click', async function() {
             const length = parseInt(document.getElementById('lengthInput').value);
             const numberSet = document.getElementById('numberSetInput').value.split('');
-            const allowDuplicates = document.getElementById('allowDuplicates').checked;
+            let allowDuplicates = document.getElementById('allowDuplicates').checked;
             const downloadBtn = document.getElementById('downloadBtn');
             const loadingMessage = document.getElementById('loadingMessage');
             const progressContainer = document.getElementById('progressContainer');
@@ -128,7 +140,6 @@
             downloadBtn.style.display = 'none'; // Hide download button initially
             loadingMessage.style.display = 'block'; // Show loading message
             progressContainer.style.display = 'block'; // Show progress container
-            updateProgressBar(0, allowDuplicates ? Math.pow(numberSet.length, length) : factorial(numberSet.length) / factorial(numberSet.length - length)); // Reset progress bar
 
             await generateSequences(length, numberSet, allowDuplicates);
 
