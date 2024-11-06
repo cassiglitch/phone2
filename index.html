@@ -231,19 +231,19 @@
             gameInterval = setInterval(update, gameSpeed);
         }
 
-        function handleSwipeDirection(swipedir) {
-            switch (swipedir) {
+        function handleSwipeDirection(direction) {
+            switch (direction) {
                 case 'left':
-                    if (swipedir.x === 0) direction = {x: -gridSize, y: 0};
+                    if (direction.x === 0) direction = {x: -gridSize, y: 0};
                     break;
                 case 'up':
-                    if (swipedir.y === 0) direction = {x: 0, y: -gridSize};
+                    if (direction.y === 0) direction = {x: 0, y: -gridSize};
                     break;
                 case 'right':
-                    if (swipedir.x === 0) direction = {x: gridSize, y: 0};
+                    if (direction.x === 0) direction = {x: gridSize, y: 0};
                     break;
                 case 'down':
-                    if (swipedir.y === 0) direction = {x: 0, y: gridSize};
+                    if (direction.y === 0) direction = {x: 0, y: gridSize};
                     break;
             }
         }
