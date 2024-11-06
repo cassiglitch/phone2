@@ -203,90 +203,75 @@
                     }
                 }
 
-                // If full, clear the line
                 if (fullLine) {
-                    score += 100;
-                    // Remove all blocks in the line
-                    tetrisBlocks = tetrisBlocks.filter(block => block.y !== y);
-                    staticBlocks = staticBlocks.filter(block => block.y !== y);
+                    // Clear the line and move blocks down
                     clearedLines++;
+                    for (let i = 0; i < tetrisBlocks.length; i++) {
+                        const block = tetrisBlocks[i];
+                        block.shape.forEach(part => {
+                            if (block.y + part.y * gridSize === y) {
+                                block.y += gridSize;
+                            }
+                        });
+                    }
+                    tetrisBlocks = tetrisBlocks.filter(block => block.y !== y);
                 }
             }
         }
 
-        function update() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            moveSnake();
-            moveTetrisBlocks();
-            drawSnake();
-            drawTetrisBlocks();
-            clearFullLines();
-            document.getElementById("score").innerText = "Score: " + score;
+        // Function to handle swipe input for mobile
+        function handleSwipe(e) {
+            const touchEndX = e.changedTouches[0].clientX;
+            const touchEndY = e.changedTouches[0].clientY;
+
+            const diffX = touchEndX - touchStartX;
+            const diffY = touchEndY - touchStartY;
+
+            if (Math.abs(diffX) > Math.abs(diffY)) {
+                if (diffX > 0) {
+                    direction = {x: gridSize, y: 0}; // Right
+                } else {
+                    direction = {x: -gridSize, y: 0}; // Left
+                }
+            } else {
+                if (diffY > 0) {
+                    direction = {x: 0, y: gridSize}; // Down
+                } else {
+                    direction = {x: 0, y: -gridSize}; // Up
+                }
+            }
         }
 
         function startGame() {
-            direction = {x: 0, y: -gridSize}; // Initial movement direction
-            snake = [{x: 200, y: 200}];
             spawnTetrisBlock();
-            gameInterval = setInterval(update, gameSpeed);
+            gameInterval = setInterval(() => {
+                moveSnake();
+                moveTetrisBlocks();
+                clearFullLines();
+                drawSnake();
+                drawTetrisBlocks();
+                if (checkCollision()) {
+                    clearInterval(gameInterval);
+                    alert('Game Over!');
+                }
+                document.getElementById('score').textContent = `Score: ${score}`;
+            }, gameSpeed);
         }
 
-        function handleSwipeDirection(direction) {
-            switch (direction) {
-                case 'left':
-                    if (direction.x === 0) direction = {x: -gridSize, y: 0};
-                    break;
-                case 'up':
-                    if (direction.y === 0) direction = {x: 0, y: -gridSize};
-                    break;
-                case 'right':
-                    if (direction.x === 0) direction = {x: gridSize, y: 0};
-                    break;
-                case 'down':
-                    if (direction.y === 0) direction = {x: 0, y: gridSize};
-                    break;
-            }
-        }
-
-        window.addEventListener('keydown', e => {
-            switch (e.key) {
-                case 'ArrowUp':
-                    handleSwipeDirection('up');
-                    break;
-                case 'ArrowDown':
-                    handleSwipeDirection('down');
-                    break;
-                case 'ArrowLeft':
-                    handleSwipeDirection('left');
-                    break;
-                case 'ArrowRight':
-                    handleSwipeDirection('right');
-                    break;
-            }
+        // Event listeners
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp' && direction.y === 0) direction = {x: 0, y: -gridSize};
+            if (e.key === 'ArrowDown' && direction.y === 0) direction = {x: 0, y: gridSize};
+            if (e.key === 'ArrowLeft' && direction.x === 0) direction = {x: -gridSize, y: 0};
+            if (e.key === 'ArrowRight' && direction.x === 0) direction = {x: gridSize, y: 0};
         });
 
-        // Handle touch controls for mobile
-        canvas.addEventListener('touchstart', e => {
-            const touch = e.touches[0];
-            touchStartX = touch.clientX;
-            touchStartY = touch.clientY;
+        window.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].clientX;
+            touchStartY = e.changedTouches[0].clientY;
         });
 
-        canvas.addEventListener('touchend', e => {
-            const touch = e.changedTouches[0];
-            const deltaX = touch.clientX - touchStartX;
-            const deltaY = touch.clientY - touchStartY;
-
-            if (Math.abs(deltaX) > Math.abs(deltaY)) {
-                // Horizontal swipe
-                if (deltaX > 0) handleSwipeDirection('right');
-                else handleSwipeDirection('left');
-            } else {
-                // Vertical swipe
-                if (deltaY > 0) handleSwipeDirection('down');
-                else handleSwipeDirection('up');
-            }
-        });
+        window.addEventListener('touchend', handleSwipe);
 
         startGame();
     </script>
