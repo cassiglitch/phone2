@@ -231,22 +231,23 @@
             gameInterval = setInterval(update, gameSpeed);
         }
 
-        function handleSwipeDirection(direction) {
-            switch (direction) {
-                case 'left':
-                    if (direction.x === 0) direction = {x: -gridSize, y: 0};
-                    break;
-                case 'up':
-                    if (direction.y === 0) direction = {x: 0, y: -gridSize};
-                    break;
-                case 'right':
-                    if (direction.x === 0) direction = {x: gridSize, y: 0};
-                    break;
-                case 'down':
-                    if (direction.y === 0) direction = {x: 0, y: gridSize};
-                    break;
-            }
-        }
+function handleSwipeDirection(newDirection) {
+    switch (newDirection) {
+        case 'left':
+            if (direction.x === 0) direction = {x: -gridSize, y: 0}; // Prevent reverse direction
+            break;
+        case 'up':
+            if (direction.y === 0) direction = {x: 0, y: -gridSize}; // Prevent reverse direction
+            break;
+        case 'right':
+            if (direction.x === 0) direction = {x: gridSize, y: 0}; // Prevent reverse direction
+            break;
+        case 'down':
+            if (direction.y === 0) direction = {x: 0, y: gridSize}; // Prevent reverse direction
+            break;
+    }
+}
+
 
         window.addEventListener('keydown', e => {
             switch (e.key) {
