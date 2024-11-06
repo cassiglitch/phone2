@@ -66,6 +66,11 @@
             [{x: 0, y: 0}, {x: 1, y: 0}, {x: 1, y: 1}, {x: 2, y: 1}], // Z shape
         ];
 
+                // Function to get a random color
+        function getRandomColor() {
+            const colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF8C00', '#FFD700', '#00FF7F'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
         function randomPosition() {
             return Math.floor(Math.random() * (canvasSize / gridSize)) * gridSize;
         }
@@ -141,29 +146,11 @@
         }
 
 function generateRandomTetrisBlock() {
-    const shapes = [
-        // Square block
-        [{x: 0, y: 0}, {x: 1, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}],
-        // L block
-        [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}, {x: 0, y: 1}],
-        // Reverse L block
-        [{x: 0, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}],
-        // T block
-        [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}, {x: 1, y: 1}],
-        // Z block
-        [{x: 0, y: 0}, {x: 1, y: 0}, {x: 1, y: 1}, {x: 2, y: 1}],
-        // Reverse Z block
-        [{x: 2, y: 0}, {x: 1, y: 0}, {x: 1, y: 1}, {x: 0, y: 1}],
-        // S block
-        [{x: 0, y: 1}, {x: 1, y: 1}, {x: 1, y: 0}, {x: 2, y: 0}]
-    ];
+            const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
+            const blockColor = getRandomColor(); // Get random color for the block
 
-    // Pick a random shape from the array
-    const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
-
-    // Return the new block shape
-    return {shape: randomShape, x: 0, y: 0}; // Position will be updated in moveTetrisBlocks
-}
+            return {shape: randomShape, x: 0, y: 0, color: blockColor}; // Add color to the block
+        }
 
         
 function spawnTetrisBlock() {
