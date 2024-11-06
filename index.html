@@ -150,36 +150,50 @@
         }
 
         function moveTetrisBlocks() {
-            for (let i = 0; i < tetrisBlocks.length; i++) {
-                if (!blockHitGround[i]) {
-                    tetrisBlocks[i].y += gridSize;
+    for (let i = 0; i < tetrisBlocks.length; i++) {
+        if (!blockHitGround[i]) {
+            tetrisBlocks[i].y += gridSize;
 
-                    // Check for block-on-block collision
-                    if (tetrisBlocks[i].y >= canvasSize) {
-                        // Stop block from falling
-                        blockHitGround[i] = true;
-                        tetrisBlocks.splice(i, 1); // Remove from falling blocks
-                        spawnTetrisBlock(); // Spawn a new block
-                        gameSpeed -= 5; // Slow down game speed slightly
-                    }
-                }
+            // Check for block-on-block collision (static blocks)
+            if (tetrisBlocks[i].y + gridSize > canvasSize || isBlockColliding(tetrisBlocks[i])) {
+                // Add the current block to the static blocks
+                staticBlocks.push(tetrisBlocks[i]);
+                
+                // Mark the block as having hit the ground
+                blockHitGround[i] = true;
+
+                // Remove the block from the falling blocks list
+                tetrisBlocks.splice(i, 1);
+                
+                // Spawn a new block
+                spawnTetrisBlock();
+                
+                // Slow down the game speed slightly after each block lands
+                gameSpeed -= 5;
+
+                // Ensure we adjust the loop index when removing an element from tetrisBlocks
+                i--;
             }
         }
+    }
+}
+
 
         function isBlockColliding(block) {
-            // Check if the block collides with any of the static blocks
-            for (let staticBlock of staticBlocks) {
-                for (let part of block.shape) {
-                    for (let staticPart of staticBlock.shape) {
-                        if (block.x + part.x * gridSize === staticBlock.x + staticPart.x * gridSize &&
-                            block.y + part.y * gridSize === staticBlock.y + staticPart.y * gridSize) {
-                            return true;
-                        }
-                    }
+    // Check if the block collides with any of the static blocks
+    for (let staticBlock of staticBlocks) {
+        for (let part of block.shape) {
+            for (let staticPart of staticBlock.shape) {
+                if (block.x + part.x * gridSize === staticBlock.x + staticPart.x * gridSize &&
+                    block.y + part.y * gridSize === staticBlock.y + staticPart.y * gridSize) {
+                    return true;
                 }
             }
-            return false;
         }
+    }
+    return false;
+}
+
 
         function clearFullLines() {
             for (let y = canvasSize - gridSize; y >= 0; y -= gridSize) {
