@@ -14,15 +14,14 @@
             height: 100vh;
             background-color: #000;
             color: white;
-            font-family: Arial, sans-serif;
             flex-direction: column;
+            font-family: Arial, sans-serif;
             overflow: hidden; /* No more scrolling for you! */
             user-select: none;
             -webkit-user-select: none; /* For Safari */
             -moz-user-select: none; /* For Firefox */
              -ms-user-select: none; /* For Internet Explorer/Edge */
         }
-
         canvas {
             border: 2px solid white;
         }
@@ -40,25 +39,31 @@
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const gridSize = 20;
+        const gridSize = 20; // Grid size for snake and blocks
         const canvasSize = 400;
         let snake = [{x: 200, y: 200}];
         let direction = {x: 0, y: 0};
         let tetrisBlocks = [];
         let score = 0;
         let gameInterval;
-        let gameSpeed = 100;
+        let blockFallSpeed = 100; // Speed of blocks falling, will slow down over time
+        let foodFallSpeed = 200; // Speed of falling food, will slow down over time
+        let clearedLines = 0;
         let blockHitGround = [];
-        let staticBlocks = [];
+        let gameSpeed = 100;
+        let staticBlocks = []; // Stores blocks that have hit the ground
+        let touchStartX = 0;
+        let touchStartY = 0;
 
+        // Shape Definitions (I, O, T, L, J, S, Z)
         const shapes = [
-            [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}, {x: 3, y: 0}],
-            [{x: 0, y: 0}, {x: 1, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}],
-            [{x: 1, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}],
-            [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}, {x: 2, y: 1}],
-            [{x: 2, y: 0}, {x: 1, y: 0}, {x: 0, y: 0}, {x: 0, y: 1}],
-            [{x: 1, y: 0}, {x: 2, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}],
-            [{x: 0, y: 0}, {x: 1, y: 0}, {x: 1, y: 1}, {x: 2, y: 1}],
+            [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}, {x: 3, y: 0}], // I shape
+            [{x: 0, y: 0}, {x: 1, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}], // O shape
+            [{x: 1, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}], // T shape
+            [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}, {x: 2, y: 1}], // L shape
+            [{x: 2, y: 0}, {x: 1, y: 0}, {x: 0, y: 0}, {x: 0, y: 1}], // J shape
+            [{x: 1, y: 0}, {x: 2, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}], // S shape
+            [{x: 0, y: 0}, {x: 1, y: 0}, {x: 1, y: 1}, {x: 2, y: 1}], // Z shape
         ];
 
         function randomPosition() {
@@ -67,8 +72,8 @@
 
         function drawSnake() {
             ctx.fillStyle = 'lime';
-            for (let part of snake) {
-                ctx.fillRect(part.x, part.y, gridSize, gridSize);
+            for (let i = 0; i < snake.length; i++) {
+                ctx.fillRect(snake[i].x, snake[i].y, gridSize, gridSize);
             }
         }
 
@@ -83,20 +88,62 @@
 
         function moveSnake() {
             const head = {x: snake[0].x + direction.x, y: snake[0].y + direction.y};
-
+            
+            // Wrap around the screen edges
             if (head.x >= canvasSize) head.x = 0;
             if (head.x < 0) head.x = canvasSize - gridSize;
             if (head.y >= canvasSize) head.y = 0;
             if (head.y < 0) head.y = canvasSize - gridSize;
 
             snake.unshift(head);
+
+            // Check if snake eats a block or collides with a block
+            for (let i = 0; i < tetrisBlocks.length; i++) {
+                const block = tetrisBlocks[i];
+                if (!blockHitGround[i]) {
+                    block.shape.forEach(part => {
+                        // Check if the head of the snake collides with a part of the block
+                        if (head.x === block.x + part.x * gridSize && head.y === block.y + part.y * gridSize) {
+                            score += 10;
+                            // Transform snake into Tetris block
+                            transformSnake(block);
+                            tetrisBlocks.splice(i, 1); // Remove eaten block
+                            blockHitGround.splice(i, 1); // Remove corresponding block hit status
+                            spawnTetrisBlock(); // Spawn new block
+                        }
+
+                    });
+                }
+            }
+
+            // Remove snake tail
             snake.pop();
+        }
+
+        function transformSnake(block) {
+            // Make snake transform into the shape of the Tetris block
+            for (let part of block.shape) {
+                snake.push({x: block.x + part.x * gridSize, y: block.y + part.y * gridSize});
+            }
+        }
+
+        function checkCollision() {
+            const head = snake[0];
+            
+            // Check if snake collides with itself
+            for (let i = 1; i < snake.length; i++) {
+                if (head.x === snake[i].x && head.y === snake[i].y) {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         function spawnTetrisBlock() {
             const shape = shapes[Math.floor(Math.random() * shapes.length)];
             const x = randomPosition();
-            const y = -gridSize;
+            const y = -gridSize; // Start off-screen
             const color = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'cyan'][Math.floor(Math.random() * 7)];
             tetrisBlocks.push({x, y, shape, color});
             blockHitGround.push(false);
@@ -106,11 +153,63 @@
             for (let i = 0; i < tetrisBlocks.length; i++) {
                 if (!blockHitGround[i]) {
                     tetrisBlocks[i].y += gridSize;
+
+                    // Check for block-on-block collision
                     if (tetrisBlocks[i].y >= canvasSize) {
+                        // Stop block from falling
                         blockHitGround[i] = true;
-                        tetrisBlocks.splice(i, 1);
-                        spawnTetrisBlock();
+                        tetrisBlocks.splice(i, 1); // Remove from falling blocks
+                        spawnTetrisBlock(); // Spawn a new block
+                        gameSpeed -= 5; // Slow down game speed slightly
                     }
+                }
+            }
+        }
+
+        function isBlockColliding(block) {
+            // Check if the block collides with any of the static blocks
+            for (let staticBlock of staticBlocks) {
+                for (let part of block.shape) {
+                    for (let staticPart of staticBlock.shape) {
+                        if (block.x + part.x * gridSize === staticBlock.x + staticPart.x * gridSize &&
+                            block.y + part.y * gridSize === staticBlock.y + staticPart.y * gridSize) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        function clearFullLines() {
+            for (let y = canvasSize - gridSize; y >= 0; y -= gridSize) {
+                let fullLine = true;
+
+                // Check if the row is full
+                for (let x = 0; x < canvasSize; x += gridSize) {
+                    let occupied = false;
+                    for (let i = 0; i < tetrisBlocks.length; i++) {
+                        const block = tetrisBlocks[i];
+                        for (let part of block.shape) {
+                            if (block.x + part.x * gridSize === x && block.y + part.y * gridSize === y) {
+                                occupied = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!occupied) {
+                        fullLine = false;
+                        break;
+                    }
+                }
+
+                // If full, clear the line
+                if (fullLine) {
+                    score += 100;
+                    // Remove all blocks in the line
+                    tetrisBlocks = tetrisBlocks.filter(block => block.y !== y);
+                    staticBlocks = staticBlocks.filter(block => block.y !== y);
+                    clearedLines++;
                 }
             }
         }
@@ -121,58 +220,72 @@
             moveTetrisBlocks();
             drawSnake();
             drawTetrisBlocks();
+            clearFullLines();
             document.getElementById("score").innerText = "Score: " + score;
         }
 
         function startGame() {
-            gameInterval = setInterval(update, gameSpeed);
+            direction = {x: 0, y: -gridSize}; // Initial movement direction
+            snake = [{x: 200, y: 200}];
             spawnTetrisBlock();
+            gameInterval = setInterval(update, gameSpeed);
         }
 
-        window.addEventListener('keydown', function(e) {
-            if (e.key === "ArrowUp" && direction.y === 0) direction = {x: 0, y: -gridSize};
-            if (e.key === "ArrowDown" && direction.y === 0) direction = {x: 0, y: gridSize};
-            if (e.key === "ArrowLeft" && direction.x === 0) direction = {x: -gridSize, y: 0};
-            if (e.key === "ArrowRight" && direction.x === 0) direction = {x: gridSize, y: 0};
+        function handleSwipeDirection(direction) {
+            switch (direction) {
+                case 'left':
+                    if (direction.x === 0) direction = {x: -gridSize, y: 0};
+                    break;
+                case 'up':
+                    if (direction.y === 0) direction = {x: 0, y: -gridSize};
+                    break;
+                case 'right':
+                    if (direction.x === 0) direction = {x: gridSize, y: 0};
+                    break;
+                case 'down':
+                    if (direction.y === 0) direction = {x: 0, y: gridSize};
+                    break;
+            }
+        }
+
+        window.addEventListener('keydown', e => {
+            switch (e.key) {
+                case 'ArrowUp':
+                    handleSwipeDirection('up');
+                    break;
+                case 'ArrowDown':
+                    handleSwipeDirection('down');
+                    break;
+                case 'ArrowLeft':
+                    handleSwipeDirection('left');
+                    break;
+                case 'ArrowRight':
+                    handleSwipeDirection('right');
+                    break;
+            }
         });
 
-        // Swipe controls for mobile
-        let touchStartX = 0;
-        let touchStartY = 0;
-
-        window.addEventListener('touchstart', (e) => {
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
+        // Handle touch controls for mobile
+        canvas.addEventListener('touchstart', e => {
+            const touch = e.touches[0];
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
         });
 
-        window.addEventListener('touchmove', (e) => {
-            if (!touchStartX || !touchStartY) return;
+        canvas.addEventListener('touchend', e => {
+            const touch = e.changedTouches[0];
+            const deltaX = touch.clientX - touchStartX;
+            const deltaY = touch.clientY - touchStartY;
 
-            let touchEndX = e.touches[0].clientX;
-            let touchEndY = e.touches[0].clientY;
-
-            let diffX = touchEndX - touchStartX;
-            let diffY = touchEndY - touchStartY;
-
-            if (Math.abs(diffX) > Math.abs(diffY)) {
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
                 // Horizontal swipe
-                if (diffX > 0 && direction.x === 0) {
-                    direction = {x: gridSize, y: 0}; // Right swipe
-                } else if (diffX < 0 && direction.x === 0) {
-                    direction = {x: -gridSize, y: 0}; // Left swipe
-                }
+                if (deltaX > 0) handleSwipeDirection('right');
+                else handleSwipeDirection('left');
             } else {
                 // Vertical swipe
-                if (diffY > 0 && direction.y === 0) {
-                    direction = {x: 0, y: gridSize}; // Down swipe
-                } else if (diffY < 0 && direction.y === 0) {
-                    direction = {x: 0, y: -gridSize}; // Up swipe
-                }
+                if (deltaY > 0) handleSwipeDirection('down');
+                else handleSwipeDirection('up');
             }
-
-            // Reset touch start positions after detecting swipe
-            touchStartX = 0;
-            touchStartY = 0;
         });
 
         startGame();
