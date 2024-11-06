@@ -20,7 +20,7 @@
             user-select: none;
             -webkit-user-select: none; /* For Safari */
             -moz-user-select: none; /* For Firefox */
-             -ms-user-select: none; /* For Internet Explorer/Edge */
+            -ms-user-select: none; /* For Internet Explorer/Edge */
         }
         canvas {
             border: 2px solid white;
@@ -52,6 +52,15 @@
         let staticBlocks = []; // Stores blocks that have hit the ground
         let touchStartX = 0;
         let touchStartY = 0;
+                let startingGridSize = 20;
+        var deviceWidth, landscape = Math.abs(window.orientation) == 90
+            // workaround for strange screen.height on the iPhone (v3.1.3)
+            if (window.screen.width == 320) deviceWidth = landscape ? 480 : 320
+            else deviceWidth = window.screen[landscape ? "height" : "width"]
+            var zoomFactor = deviceWidth / window.innerWidth;
+            var antiZoomFactor = 1 / zoomFactor;
+
+
 
         // Shape Definitions (I, O, T, L, J, S, Z)
         const shapes = [
@@ -133,6 +142,84 @@
             });
         }
 
+
+function closestNumber(n, m) {
+    // Find the quotient
+    let q = Math.floor(n / m);
+
+    // 1st possible closest number
+    let n1 = m * q;
+
+    // 2nd possible closest number
+    let n2 = m * (q + 1);
+
+    // Ensure that n1 does not exceed n
+    if (n1 > n) {
+        return n;
+    }
+
+    // Ensure that n2 does not exceed n
+    if (n2 > n) {
+        return n1;
+    }
+
+    // Return the closest multiple of m to n
+    return Math.abs(n - n1) < Math.abs(n - n2) ? n1 : n2;
+}
+
+function resizeCanvas() {
+    
+    const canvasWidth = closestNumber(window.innerWidth, gridSize);
+    const canvasHeight = closestNumber(window.innerHeight, gridSize);
+    // Remove out-of-bounds elements from mirrors array
+    
+    // Set canvas width and height
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+        }
+        function getZoomFactor() {
+            var deviceWidth, landscape = Math.abs(window.orientation) == 90
+            // workaround for strange screen.height on the iPhone (v3.1.3)
+            if (window.screen.width == 320) deviceWidth = landscape ? 480 : 320
+            else deviceWidth = window.screen[landscape ? "height" : "width"]
+            var zoomFactor = deviceWidth / window.innerWidth;
+            var antiZoomFactor = 1 / zoomFactor;
+          
+            // Apply zoom and anti-zoom factors to grid size
+            gridSize = Math.max(0, Math.ceil(startingGridSize * antiZoomFactor));
+            document.getElementById('scoreDisplay').style.top = (20 * antiZoomFactor) + 'px';
+            document.documentElement.style.setProperty('--grid-size', (20 * antiZoomFactor) + 'px');
+            psize = gridSize;
+        }
+
+        setInterval(getZoomFactor, 1); // Adjust the interval as needed
+
+        // Clean up the interval when the window is closed
+        window.addEventListener('beforeunload', () => {
+            clearInterval(gameInterval);
+        });
+// Function to resize the canvas height based on viewport height
+function resizeCanvasHeight() {
+    const windowHeight = window.innerHeight; // Get the viewport height
+    const canvasHeight = closestNumber(window.innerHeight, gridSize);; // Adjust the canvas height to be a multiple of gridSize
+    canvas.height = canvasHeight; // Set the canvas height
+}
+// Call the resizeCanvasHeight function initially to set the canvas height
+resizeCanvasHeight();
+// Call the resizeCanvasHeight function whenever the window is resized
+window.addEventListener('resize', resizeCanvasHeight);
+                function adjustForZoom() {
+            // Calculate the zoom factor
+            const zoomFactor = window.innerWidth / window.screen.availWidth;
+            // Adjust the grid size based on the zoom factor
+            document.documentElement.style.setProperty('--grid-size', (20 * antiZoomFactor) + 'px');
+        }
+window.addEventListener('resize', getZoomFactor);
+        // Call the adjustForZoom function initially and on window resize
+        window.addEventListener('resize', adjustForZoom);
+        adjustForZoom();
+
+
         // Snake movement
         function moveSnake() {
             const head = {x: snake[0].x + direction.x, y: snake[0].y + direction.y};
@@ -181,36 +268,99 @@
             blockHitGround.push(false); // Initialize hit ground status for the new block
         }
 
-        // Game loop
+        // Function to check and clear full lines or columns
+        function clearLines() {
+            const filledRows = [];
+            const filledColumns = [];
+            let segmentsRemoved = 0; // Track segments removed
+
+            // Check for filled rows in the snake's body
+            for (let y = 0; y < canvasSize; y += gridSize) {
+                let isFilled = true;
+
+                // Check if the row is filled with snake parts
+                for (let x = 0; x < canvasSize; x += gridSize) {
+                    if (!snake.some(segment => segment.x === x && segment.y === y)) {
+                        isFilled = false;
+                        break;
+                    }
+                }
+
+                if (isFilled) {
+                    filledRows.push(y);
+                }
+            }
+
+            // Check for filled columns in the snake's body
+            for (let x = 0; x < canvasSize; x += gridSize) {
+                let isFilled = true;
+
+                // Check if the column is filled with snake parts
+                for (let y = 0; y < canvasSize; y += gridSize) {
+                    if (!snake.some(segment => segment.x === x && segment.y === y)) {
+                        isFilled = false;
+                        break;
+                    }
+                }
+
+                if (isFilled) {
+                    filledColumns.push(x);
+                }
+            }
+
+            // Remove snake segments from filled rows and decrease the score
+            for (let row of filledRows) {
+                const segmentsToRemove = snake.filter(segment => segment.y === row);
+                segmentsRemoved += segmentsToRemove.length;
+                snake = snake.filter(segment => segment.y !== row); // Remove segments in the filled row
+                clearedLines++; // Increment cleared lines
+            }
+
+            // Remove snake segments from filled columns and decrease the score
+            for (let col of filledColumns) {
+                const segmentsToRemove = snake.filter(segment => segment.x === col);
+                segmentsRemoved += segmentsToRemove.length;
+                snake = snake.filter(segment => segment.x !== col); // Remove segments in the filled column
+                clearedLines++; // Increment cleared lines
+            }
+
+            // Decrease score for every segment removed
+            score -= segmentsRemoved * 5;
+
+            // Shift the snake down after clearing lines
+            snake.forEach(segment => {
+                if (segment.y < filledRows[0] && segment.x < filledColumns[0]) {
+                    return; // Don't move segments in already cleared rows and columns
+                }
+                segment.y += gridSize * (filledRows.length + filledColumns.length);
+            });
+        }
+
+        // Improved game loop to include line clearing
         function gameLoop() {
             moveSnake();
             moveTetrisBlocks();
+            clearLines(); // Add the line clearing logic here
 
             ctx.clearRect(0, 0, canvasSize, canvasSize); // Clear canvas before each frame
 
             drawSnake();
             drawTetrisBlocks();
             
-            // Update score
+            // Update score and cleared lines
             document.getElementById('score').textContent = `Score: ${score}`;
 
             setTimeout(gameLoop, gameSpeed);
         }
 
-        // Start the game
-        function startGame() {
-            spawnTetrisBlock(); // Start with one Tetris block
-            gameLoop();
-        }
-
-        // Handle key events
-        window.addEventListener('keydown', function(e) {
+        // Event listener for keyboard input
+        document.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowUp') direction = {x: 0, y: -gridSize};
             if (e.key === 'ArrowDown') direction = {x: 0, y: gridSize};
             if (e.key === 'ArrowLeft') direction = {x: -gridSize, y: 0};
             if (e.key === 'ArrowRight') direction = {x: gridSize, y: 0};
         });
-
+        
         // Touch controls for mobile devices
         canvas.addEventListener('touchstart', function(e) {
             touchStartX = e.touches[0].clientX;
@@ -235,7 +385,413 @@
             }
         });
 
-        startGame();
+
+
+        // Initialize the game
+        function init() {
+            spawnTetrisBlock(); // Initial Tetris block spawn
+            gameLoop(); // Start the game loop
+        }
+
+        init(); // Start the game
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TetraSnake Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #000;
+            color: white;
+            flex-direction: column;
+            font-family: Arial, sans-serif;
+            overflow: hidden; /* No more scrolling for you! */
+            user-select: none;
+            -webkit-user-select: none; /* For Safari */
+            -moz-user-select: none; /* For Firefox */
+            -ms-user-select: none; /* For Internet Explorer/Edge */
+        }
+        canvas {
+            border: 2px solid white;
+        }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">Score: 0</div>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gridSize = 20; // Grid size for snake and blocks
+        const canvasSize = 400;
+        let snake = [{x: 200, y: 200}];
+        let direction = {x: 0, y: 0};
+        let tetrisBlocks = [];
+        let score = 0;
+        let blockFallSpeed = 100; // Speed of blocks falling, will slow down over time
+        let clearedLines = 0;
+        let blockHitGround = [];
+        let gameSpeed = 100;
+        let staticBlocks = []; // Stores blocks that have hit the ground
+        let touchStartX = 0;
+        let touchStartY = 0;
+                let startingGridSize = 20;
+        var deviceWidth, landscape = Math.abs(window.orientation) == 90
+            // workaround for strange screen.height on the iPhone (v3.1.3)
+            if (window.screen.width == 320) deviceWidth = landscape ? 480 : 320
+            else deviceWidth = window.screen[landscape ? "height" : "width"]
+            var zoomFactor = deviceWidth / window.innerWidth;
+            var antiZoomFactor = 1 / zoomFactor;
+
+
+
+        // Shape Definitions (I, O, T, L, J, S, Z)
+        const shapes = [
+            [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}, {x: 3, y: 0}], // I shape
+            [{x: 0, y: 0}, {x: 1, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}], // O shape
+            [{x: 1, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}], // T shape
+            [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}, {x: 2, y: 1}], // L shape
+            [{x: 2, y: 0}, {x: 1, y: 0}, {x: 0, y: 0}, {x: 0, y: 1}], // J shape
+            [{x: 1, y: 0}, {x: 2, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}], // S shape
+            [{x: 0, y: 0}, {x: 1, y: 0}, {x: 1, y: 1}, {x: 2, y: 1}], // Z shape
+        ];
+
+        // Function to get a random color
+        function getRandomColor() {
+            const colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF8C00', '#FFD700', '#00FF7F'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        // Generate a random Tetris block
+        function generateRandomTetrisBlock() {
+            const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
+            const blockColor = getRandomColor(); // Get random color for the block
+
+            return {shape: randomShape, x: Math.floor(Math.random() * (canvasSize / gridSize)) * gridSize, y: 0, color: blockColor}; // Add color and random position
+        }
+
+        // Function to move the Tetris blocks down
+        function moveTetrisBlocks() {
+            for (let i = 0; i < tetrisBlocks.length; i++) {
+                if (!blockHitGround[i]) {
+                    // Make the current block fall
+                    tetrisBlocks[i].y += gridSize;
+
+                    // Check if the block hits the ground or collides with another static block
+                    if (tetrisBlocks[i].y + gridSize > canvasSize || isBlockColliding(tetrisBlocks[i])) {
+                        // Instead of removing it, unrender it and randomize its stats
+                        randomizeBlock(i);
+                    }
+                }
+            }
+        }
+
+        // Function to randomize block properties (re-randomize shape, position, color)
+        function randomizeBlock(index) {
+            tetrisBlocks[index] = generateRandomTetrisBlock(); // Re-randomize block
+            blockHitGround[index] = false; // Reset the ground hit status
+        }
+
+        // Function to check for collision with static blocks
+        function isBlockColliding(block) {
+            for (let staticBlock of staticBlocks) {
+                for (let part of block.shape) {
+                    for (let staticPart of staticBlock.shape) {
+                        if (block.x + part.x * gridSize === staticBlock.x + staticPart.x * gridSize &&
+                            block.y + part.y * gridSize === staticBlock.y + staticPart.y * gridSize) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Improved Snake drawing function to render each part as a grid-aligned block
+        function drawSnake() {
+            ctx.fillStyle = 'lime';
+            for (let i = 0; i < snake.length; i++) {
+                ctx.fillRect(snake[i].x, snake[i].y, gridSize, gridSize);
+            }
+        }
+
+        // Improved Tetris block drawing function
+        function drawTetrisBlocks() {
+            tetrisBlocks.forEach(block => {
+                ctx.fillStyle = block.color;
+                block.shape.forEach(part => {
+                    ctx.fillRect(block.x + part.x * gridSize, block.y + part.y * gridSize, gridSize, gridSize);
+                });
+            });
+        }
+
+
+function closestNumber(n, m) {
+    // Find the quotient
+    let q = Math.floor(n / m);
+
+    // 1st possible closest number
+    let n1 = m * q;
+
+    // 2nd possible closest number
+    let n2 = m * (q + 1);
+
+    // Ensure that n1 does not exceed n
+    if (n1 > n) {
+        return n;
+    }
+
+    // Ensure that n2 does not exceed n
+    if (n2 > n) {
+        return n1;
+    }
+
+    // Return the closest multiple of m to n
+    return Math.abs(n - n1) < Math.abs(n - n2) ? n1 : n2;
+}
+
+function resizeCanvas() {
+    
+    const canvasWidth = closestNumber(window.innerWidth, gridSize);
+    const canvasHeight = closestNumber(window.innerHeight, gridSize);
+    // Remove out-of-bounds elements from mirrors array
+    
+    // Set canvas width and height
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+        }
+        function getZoomFactor() {
+            var deviceWidth, landscape = Math.abs(window.orientation) == 90
+            // workaround for strange screen.height on the iPhone (v3.1.3)
+            if (window.screen.width == 320) deviceWidth = landscape ? 480 : 320
+            else deviceWidth = window.screen[landscape ? "height" : "width"]
+            var zoomFactor = deviceWidth / window.innerWidth;
+            var antiZoomFactor = 1 / zoomFactor;
+          
+            // Apply zoom and anti-zoom factors to grid size
+            gridSize = Math.max(0, Math.ceil(startingGridSize * antiZoomFactor));
+            document.getElementById('scoreDisplay').style.top = (20 * antiZoomFactor) + 'px';
+            document.documentElement.style.setProperty('--grid-size', (20 * antiZoomFactor) + 'px');
+            psize = gridSize;
+        }
+
+        setInterval(getZoomFactor, 1); // Adjust the interval as needed
+
+        // Clean up the interval when the window is closed
+        window.addEventListener('beforeunload', () => {
+            clearInterval(gameInterval);
+        });
+// Function to resize the canvas height based on viewport height
+function resizeCanvasHeight() {
+    const windowHeight = window.innerHeight; // Get the viewport height
+    const canvasHeight = closestNumber(window.innerHeight, gridSize);; // Adjust the canvas height to be a multiple of gridSize
+    canvas.height = canvasHeight; // Set the canvas height
+}
+// Call the resizeCanvasHeight function initially to set the canvas height
+resizeCanvasHeight();
+// Call the resizeCanvasHeight function whenever the window is resized
+window.addEventListener('resize', resizeCanvasHeight);
+                function adjustForZoom() {
+            // Calculate the zoom factor
+            const zoomFactor = window.innerWidth / window.screen.availWidth;
+            // Adjust the grid size based on the zoom factor
+            document.documentElement.style.setProperty('--grid-size', (20 * antiZoomFactor) + 'px');
+        }
+window.addEventListener('resize', getZoomFactor);
+        // Call the adjustForZoom function initially and on window resize
+        window.addEventListener('resize', adjustForZoom);
+        adjustForZoom();
+
+
+        // Snake movement
+        function moveSnake() {
+            const head = {x: snake[0].x + direction.x, y: snake[0].y + direction.y};
+
+            // Wrap around the screen edges
+            if (head.x >= canvasSize) head.x = 0;
+            if (head.x < 0) head.x = canvasSize - gridSize;
+            if (head.y >= canvasSize) head.y = 0;
+            if (head.y < 0) head.y = canvasSize - gridSize;
+
+            snake.unshift(head);
+
+            // Check if snake eats a block or collides with a block
+            for (let i = 0; i < tetrisBlocks.length; i++) {
+                const block = tetrisBlocks[i];
+                if (!blockHitGround[i]) {
+                    block.shape.forEach(part => {
+                        // Check if the head of the snake collides with a part of the block
+                        if (head.x === block.x + part.x * gridSize && head.y === block.y + part.y * gridSize) {
+                            score += 10;
+                            // Transform snake into Tetris block
+                            transformSnake(block);
+                            tetrisBlocks.splice(i, 1); // Remove eaten block
+                            blockHitGround.splice(i, 1); // Remove corresponding block hit status
+                            spawnTetrisBlock(); // Spawn new block
+                        }
+                    });
+                }
+            }
+
+            // Remove snake tail
+            snake.pop();
+        }
+
+        // Function to transform the snake into a Tetris block
+        function transformSnake(block) {
+            // Make snake transform into the shape of the Tetris block
+            for (let part of block.shape) {
+                snake.push({x: block.x + part.x * gridSize, y: block.y + part.y * gridSize});
+            }
+        }
+
+        // Function to spawn a new Tetris block
+        function spawnTetrisBlock() {
+            tetrisBlocks.push(generateRandomTetrisBlock());
+            blockHitGround.push(false); // Initialize hit ground status for the new block
+        }
+
+        // Function to check and clear full lines or columns
+        function clearLines() {
+            const filledRows = [];
+            const filledColumns = [];
+            let segmentsRemoved = 0; // Track segments removed
+
+            // Check for filled rows in the snake's body
+            for (let y = 0; y < canvasSize; y += gridSize) {
+                let isFilled = true;
+
+                // Check if the row is filled with snake parts
+                for (let x = 0; x < canvasSize; x += gridSize) {
+                    if (!snake.some(segment => segment.x === x && segment.y === y)) {
+                        isFilled = false;
+                        break;
+                    }
+                }
+
+                if (isFilled) {
+                    filledRows.push(y);
+                }
+            }
+
+            // Check for filled columns in the snake's body
+            for (let x = 0; x < canvasSize; x += gridSize) {
+                let isFilled = true;
+
+                // Check if the column is filled with snake parts
+                for (let y = 0; y < canvasSize; y += gridSize) {
+                    if (!snake.some(segment => segment.x === x && segment.y === y)) {
+                        isFilled = false;
+                        break;
+                    }
+                }
+
+                if (isFilled) {
+                    filledColumns.push(x);
+                }
+            }
+
+            // Remove snake segments from filled rows and decrease the score
+            for (let row of filledRows) {
+                const segmentsToRemove = snake.filter(segment => segment.y === row);
+                segmentsRemoved += segmentsToRemove.length;
+                snake = snake.filter(segment => segment.y !== row); // Remove segments in the filled row
+                clearedLines++; // Increment cleared lines
+            }
+
+            // Remove snake segments from filled columns and decrease the score
+            for (let col of filledColumns) {
+                const segmentsToRemove = snake.filter(segment => segment.x === col);
+                segmentsRemoved += segmentsToRemove.length;
+                snake = snake.filter(segment => segment.x !== col); // Remove segments in the filled column
+                clearedLines++; // Increment cleared lines
+            }
+
+            // Decrease score for every segment removed
+            score -= segmentsRemoved * 5;
+
+            // Shift the snake down after clearing lines
+            snake.forEach(segment => {
+                if (segment.y < filledRows[0] && segment.x < filledColumns[0]) {
+                    return; // Don't move segments in already cleared rows and columns
+                }
+                segment.y += gridSize * (filledRows.length + filledColumns.length);
+            });
+        }
+
+        // Improved game loop to include line clearing
+        function gameLoop() {
+            moveSnake();
+            moveTetrisBlocks();
+            clearLines(); // Add the line clearing logic here
+
+            ctx.clearRect(0, 0, canvasSize, canvasSize); // Clear canvas before each frame
+
+            drawSnake();
+            drawTetrisBlocks();
+            
+            // Update score and cleared lines
+            document.getElementById('score').textContent = `Score: ${score}`;
+
+            setTimeout(gameLoop, gameSpeed);
+        }
+
+        // Event listener for keyboard input
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp') direction = {x: 0, y: -gridSize};
+            if (e.key === 'ArrowDown') direction = {x: 0, y: gridSize};
+            if (e.key === 'ArrowLeft') direction = {x: -gridSize, y: 0};
+            if (e.key === 'ArrowRight') direction = {x: gridSize, y: 0};
+        });
+        
+        // Touch controls for mobile devices
+        canvas.addEventListener('touchstart', function(e) {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        });
+
+        canvas.addEventListener('touchmove', function(e) {
+            const touchMoveX = e.touches[0].clientX;
+            const touchMoveY = e.touches[0].clientY;
+
+            const diffX = touchMoveX - touchStartX;
+            const diffY = touchMoveY - touchStartY;
+
+            if (Math.abs(diffX) > Math.abs(diffY)) {
+                // Horizontal swipe
+                if (diffX > 0) direction = {x: gridSize, y: 0}; // Right
+                else direction = {x: -gridSize, y: 0}; // Left
+            } else {
+                // Vertical swipe
+                if (diffY > 0) direction = {x: 0, y: gridSize}; // Down
+                else direction = {x: 0, y: -gridSize}; // Up
+            }
+        });
+
+
+
+        // Initialize the game
+        function init() {
+            spawnTetrisBlock(); // Initial Tetris block spawn
+            gameLoop(); // Start the game loop
+        }
+
+        init(); // Start the game
     </script>
 </body>
 </html>
