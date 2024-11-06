@@ -104,6 +104,7 @@
             }
         }
 
+
         // Function to randomize block properties (re-randomize shape, position, color)
         function randomizeBlock(index) {
             tetrisBlocks[index] = generateRandomTetrisBlock(); // Re-randomize block
@@ -339,8 +340,10 @@ window.addEventListener('resize', getZoomFactor);
 
         // Improved game loop to include line clearing
         function gameLoop() {
+            if (!paused){
             moveSnake();
             moveTetrisBlocks();
+            }
             clearLines(); // Add the line clearing logic here
 
             ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas before each frame
@@ -390,6 +393,34 @@ if (score < 0) {
                 else direction = {x: 0, y: -gridSize}; // Up
             }
         });
+let paused = false;
+
+let pressTimeout;
+let screenHoldTimeout;
+
+// Function to toggle the paused state
+function togglePaused() {
+    paused = !paused;
+    console.log("Paused:", paused);
+}
+
+// Event listener for pressing the "P" key
+document.addEventListener("keydown", (event) => {
+    if (event.key === "p" || event.key === "P") {
+        togglePaused();
+    }
+});
+
+// Event listener for holding down anywhere on the screen
+document.addEventListener("mousedown", () => {
+    screenHoldTimeout = setTimeout(() => {
+        togglePaused();
+    }, 2000); // 2 seconds
+});
+
+document.addEventListener("mouseup", () => {
+    clearTimeout(screenHoldTimeout);
+});
 
 
 
