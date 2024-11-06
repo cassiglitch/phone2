@@ -140,43 +140,78 @@
             return false;
         }
 
-        function spawnTetrisBlock() {
-            const shape = shapes[Math.floor(Math.random() * shapes.length)];
-            const x = randomPosition();
-            const y = -gridSize; // Start off-screen
-            const color = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'cyan'][Math.floor(Math.random() * 7)];
-            tetrisBlocks.push({x, y, shape, color});
-            blockHitGround.push(false);
-        }
+function generateRandomTetrisBlock() {
+    const shapes = [
+        // Square block
+        [{x: 0, y: 0}, {x: 1, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}],
+        // L block
+        [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}, {x: 0, y: 1}],
+        // Reverse L block
+        [{x: 0, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}],
+        // T block
+        [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}, {x: 1, y: 1}],
+        // Z block
+        [{x: 0, y: 0}, {x: 1, y: 0}, {x: 1, y: 1}, {x: 2, y: 1}],
+        // Reverse Z block
+        [{x: 2, y: 0}, {x: 1, y: 0}, {x: 1, y: 1}, {x: 0, y: 1}],
+        // S block
+        [{x: 0, y: 1}, {x: 1, y: 1}, {x: 1, y: 0}, {x: 2, y: 0}]
+    ];
 
-        function moveTetrisBlocks() {
+    // Pick a random shape from the array
+    const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
+
+    // Return the new block shape
+    return {shape: randomShape, x: 0, y: 0}; // Position will be updated in moveTetrisBlocks
+}
+
+        
+function spawnTetrisBlock() {
+    // Create a new block (can be a random shape or a specific one)
+    let newBlock = generateRandomTetrisBlock();
+
+    // Start the new block at the top of the screen (y = 0) and a random x position
+    newBlock.x = Math.floor(Math.random() * (canvasSize / gridSize)) * gridSize;
+    newBlock.y = 0;
+
+    // Add the new block to the tetrisBlocks array so it will start falling
+    tetrisBlocks.push(newBlock);
+
+    // Ensure we reset blockHitGround for the new block
+    blockHitGround.push(false);
+}
+
+
+function moveTetrisBlocks() {
     for (let i = 0; i < tetrisBlocks.length; i++) {
         if (!blockHitGround[i]) {
+            // Make the current block fall
             tetrisBlocks[i].y += gridSize;
 
-            // Check for block-on-block collision (static blocks)
+            // Check if the block hits the ground or collides with another static block
             if (tetrisBlocks[i].y + gridSize > canvasSize || isBlockColliding(tetrisBlocks[i])) {
-                // Add the current block to the static blocks
+                // Add the current block to the static blocks array (it's landed)
                 staticBlocks.push(tetrisBlocks[i]);
-                
-                // Mark the block as having hit the ground
+
+                // Mark the block as hit the ground
                 blockHitGround[i] = true;
 
-                // Remove the block from the falling blocks list
+                // Remove the block from the falling blocks array
                 tetrisBlocks.splice(i, 1);
                 
-                // Spawn a new block
+                // Spawn a new block to fall
                 spawnTetrisBlock();
                 
-                // Slow down the game speed slightly after each block lands
+                // Slow down the game slightly after each block lands
                 gameSpeed -= 5;
 
-                // Ensure we adjust the loop index when removing an element from tetrisBlocks
+                // Ensure we adjust the loop index when removing an element
                 i--;
             }
         }
     }
 }
+
 
 
         function isBlockColliding(block) {
