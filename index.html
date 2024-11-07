@@ -137,21 +137,62 @@ function PauseHoldEnd() {
             tetrisBlocks[index] = generateRandomTetrisBlock(); // Re-randomize block
             blockHitGround[index] = false; // Reset the ground hit status
         }
+        // Function to move the Tetris blocks down
+        function moveTetrisBlocks() {
+            for (let i = 0; i < tetrisBlocks.length; i++) {
+                if (!blockHitGround[i]) {
+                    tetrisBlocks[i].y += gridSize;
+                    if (tetrisBlocks[i].y + gridSize > canvas.height || isBlockColliding(tetrisBlocks[i])) {
+                        blockHitGround[i] = true;
+                        staticBlocks.push(tetrisBlocks[i]);
+                        tetrisBlocks[i] = generateRandomTetrisBlock();
+                        score -= 1
+                        blockHitGround[i] = false;
+                    }
+                }
+            }
+        }
 
-        // Function to check for collision with static blocks
+        // Improved collision function
         function isBlockColliding(block) {
             for (let staticBlock of staticBlocks) {
                 for (let part of block.shape) {
+                    const partX = block.x + part.x * gridSize;
+                    const partY = block.y + part.y * gridSize;
                     for (let staticPart of staticBlock.shape) {
-                        if (block.x + part.x * gridSize === staticBlock.x + staticPart.x * gridSize &&
-                            block.y + part.y * gridSize === staticBlock.y + staticPart.y * gridSize) {
-                            return true;
-                        }
+                        const staticPartX = staticBlock.x + staticPart.x * gridSize;
+                        const staticPartY = staticBlock.y + staticPart.y * gridSize;
+                        if (partX === staticPartX && partY === staticPartY) return true;
                     }
                 }
             }
             return false;
         }
+
+        // Snake movement and eating logic
+        function moveSnake() {
+            const head = {x: snake[0].x + direction.x, y: snake[0].y + direction.y};
+            if (head.x >= canvas.width) head.x = 0;
+            if (head.x < 0) head.x = canvas.width - gridSize;
+            if (head.y >= canvas.height) head.y = 0;
+            if (head.y < 0) head.y = canvas.height - gridSize;
+            snake.unshift(head);
+            for (let i = 0; i < tetrisBlocks.length; i++) {
+                const block = tetrisBlocks[i];
+                block.shape.forEach(part => {
+                    if (head.x === block.x + part.x * gridSize && head.y === block.y + part.y * gridSize) {
+                        score += 10;
+                        transformSnake(block)
+                        snake.push(...block.shape.map(part => ({x: block.x + part.x * gridSize, y: block.y + part.y * gridSize})));
+                        tetrisBlocks.splice(i, 1);
+                        blockHitGround.splice(i, 1);
+                        tetrisBlocks.push(generateRandomTetrisBlock());
+                    }
+                });
+            }
+            snake.pop();
+        }
+
 
         // Improved Snake drawing function to render each part as a grid-aligned block
         function drawSnake() {
@@ -258,40 +299,6 @@ window.addEventListener('resize', getZoomFactor);
         window.addEventListener('resize', adjustForZoom);
         adjustForZoom();
 
-
-        // Snake movement
-        function moveSnake() {
-            const head = {x: snake[0].x + direction.x, y: snake[0].y + direction.y};
-
-            // Wrap around the screen edges
-            if (head.x >= canvas.width) head.x = 0;
-            if (head.x < 0) head.x = canvas.width - gridSize;
-            if (head.y >= canvas.height) head.y = 0;
-            if (head.y < 0) head.y = canvas.height - gridSize;
-
-            snake.unshift(head);
-
-            // Check if snake eats a block or collides with a block
-            for (let i = 0; i < tetrisBlocks.length; i++) {
-                const block = tetrisBlocks[i];
-                if (!blockHitGround[i]) {
-                    block.shape.forEach(part => {
-                        // Check if the head of the snake collides with a part of the block
-                        if (head.x === block.x + part.x * gridSize && head.y === block.y + part.y * gridSize) {
-                            score += 10;
-                            // Transform snake into Tetris block
-                            transformSnake(block);
-                            tetrisBlocks.splice(i, 1); // Remove eaten block
-                            blockHitGround.splice(i, 1); // Remove corresponding block hit status
-                            spawnTetrisBlock(); // Spawn new block
-                        }
-                    });
-                }
-            }
-
-            // Remove snake tail
-            snake.pop();
-        }
 
         // Function to transform the snake into a Tetris block
         function transformSnake(block) {
