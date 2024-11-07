@@ -130,9 +130,45 @@ function PauseHoldEnd() {
                 }
             }
         }
+        // Function to get the coordinates of each cell in a Tetris block
+function getBlockCellCoordinates(block) {
+    const cells = [];
+    block.shape.forEach(part => {
+        const cellX = block.x + part.x * gridSize;
+        const cellY = block.y + part.y * gridSize;
+        cells.push({x: cellX, y: cellY});
+    });
+    return cells;
+}
 
 
-        // Function to randomize block properties (re-randomize shape, position, color)
+
+        // Function to randomize block properties (re-randomize shape, position, color)// Function to check if the snake collides with any Tetris block cells
+function checkSnakeCollisionWithBlocks() {
+    const head = snake[0]; // The head of the snake for collision checking
+    for (let i = 0; i < tetrisBlocks.length; i++) {
+        const blockCells = getBlockCellCoordinates(tetrisBlocks[i]);
+        for (let cell of blockCells) {
+            if (head.x === cell.x && head.y === cell.y) {
+                handleSnakeBlockCollision(i); // Handle collision, update score, etc.
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Function to handle what happens when the snake collides with a Tetris block
+function handleSnakeBlockCollision(blockIndex) {
+    score += 10;
+    const block = tetrisBlocks[blockIndex];
+    transformSnake(block); // Transform the snake into part of the block's shape
+    // Remove the collided block and replace with a new one
+    tetrisBlocks.splice(blockIndex, 1);
+    blockHitGround.splice(blockIndex, 1);
+    tetrisBlocks.push(generateRandomTetrisBlock());
+}
+
         function randomizeBlock(index) {
             tetrisBlocks[index] = generateRandomTetrisBlock(); // Re-randomize block
             blockHitGround[index] = false; // Reset the ground hit status
@@ -177,20 +213,8 @@ function PauseHoldEnd() {
             if (head.y >= canvas.height) head.y = 0;
             if (head.y < 0) head.y = canvas.height - gridSize;
             snake.unshift(head);
-            for (let i = 0; i < tetrisBlocks.length; i++) {
-                const block = tetrisBlocks[i];
-                block.shape.forEach(part => {
-                    if (head.x === block.x + part.x * gridSize && head.y === block.y + part.y * gridSize) {
-                        score += 10;
-                        transformSnake(block)
-                        snake.push(...block.shape.map(part => ({x: block.x + part.x * gridSize, y: block.y + part.y * gridSize})));
-                        tetrisBlocks.splice(i, 1);
-                        blockHitGround.splice(i, 1);
-                        tetrisBlocks.push(generateRandomTetrisBlock());
-                    }
-                });
-            }
             snake.pop();
+            checkSnakeCollisionWithBlocks()
         }
 
 
