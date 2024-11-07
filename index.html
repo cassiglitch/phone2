@@ -24,7 +24,7 @@
         }
         canvas {
             user-select: none;
-            position: absolute;
+            position: fixed;
             top: 0; 
             left: 0
             border: 2px solid white;
@@ -65,33 +65,6 @@
             else deviceWidth = window.screen[landscape ? "height" : "width"]
             var zoomFactor = deviceWidth / window.innerWidth;
             var antiZoomFactor = 1 / zoomFactor;
-// Function to check collision between snake and Tetris blocks
-function isSnakeCollidingWithBlock(block) {
-    // Iterate over each part of the Tetris block shape
-    for (let part of block.shape) {
-        // Calculate the actual coordinates of this part of the Tetris block
-        let blockPartX = block.x + part.x * gridSize;
-        let blockPartY = block.y + part.y * gridSize;
-
-        // Check each segment of the snake for collision with this part of the block
-        for (let segment of snake) {
-            if (segment.x === blockPartX && segment.y === blockPartY) {
-                return true; // Collision detected
-            }
-        }
-    }
-    return false; // No collision detected
-}
-
-// Function to check all collisions between snake and blocks
-function checkCollisions() {
-    for (let i = 0; i < tetrisBlocks.length; i++) {
-        if (isSnakeCollidingWithBlock(tetrisBlocks[i])) {
-            // Handle collision (e.g., game over or losing a segment)
-            score += 10
-        }
-    }
-}
 
 
     canvas.addEventListener('touchstart', PauseHoldStart) 
@@ -298,27 +271,23 @@ window.addEventListener('resize', getZoomFactor);
 
             snake.unshift(head);
 
-// Check if snake eats a block or collides with a block
-for (let i = 0; i < tetrisBlocks.length; i++) {
-    const block = tetrisBlocks[i];
-    
-    // Ensure block is checked only if it hasn't hit the ground
-    if (!blockHitGround[i] && isSnakeCollidingWithBlock(block)) {
-        // Transform the snake into a Tetris block upon collision
-        transformSnake(block);
-
-        // Remove the block from the array and update blockHitGround status
-        tetrisBlocks.splice(i, 1);
-        blockHitGround.splice(i, 1);
-
-        // Spawn a new Tetris block after consuming the current one
-        spawnTetrisBlock();
-        
-        // Exit the loop since we modified the array to avoid out-of-sync indices
-    ;
-    }
-}
-
+            // Check if snake eats a block or collides with a block
+            for (let i = 0; i < tetrisBlocks.length; i++) {
+                const block = tetrisBlocks[i];
+                if (!blockHitGround[i]) {
+                    block.shape.forEach(part => {
+                        // Check if the head of the snake collides with a part of the block
+                        if (head.x === block.x + part.x * gridSize && head.y === block.y + part.y * gridSize) {
+                            score += 10;
+                            // Transform snake into Tetris block
+                            transformSnake(block);
+                            tetrisBlocks.splice(i, 1); // Remove eaten block
+                            blockHitGround.splice(i, 1); // Remove corresponding block hit status
+                            spawnTetrisBlock(); // Spawn new block
+                        }
+                    });
+                }
+            }
 
             // Remove snake tail
             snake.pop();
@@ -416,7 +385,7 @@ for (let i = 0; i < tetrisBlocks.length; i++) {
 
             ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas before each frame
             resizeCanvas()
-checkCollisions() 
+
 if (score < 0) {
     score = 0;
 }
