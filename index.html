@@ -65,6 +65,33 @@
             else deviceWidth = window.screen[landscape ? "height" : "width"]
             var zoomFactor = deviceWidth / window.innerWidth;
             var antiZoomFactor = 1 / zoomFactor;
+// Function to check collision between snake and Tetris blocks
+function isSnakeCollidingWithBlock(block) {
+    // Iterate over each part of the Tetris block shape
+    for (let part of block.shape) {
+        // Calculate the actual coordinates of this part of the Tetris block
+        let blockPartX = block.x + part.x * gridSize;
+        let blockPartY = block.y + part.y * gridSize;
+
+        // Check each segment of the snake for collision with this part of the block
+        for (let segment of snake) {
+            if (segment.x === blockPartX && segment.y === blockPartY) {
+                return true; // Collision detected
+            }
+        }
+    }
+    return false; // No collision detected
+}
+
+// Function to check all collisions between snake and blocks
+function checkCollisions() {
+    for (let i = 0; i < tetrisBlocks.length; i++) {
+        if (isSnakeCollidingWithBlock(tetrisBlocks[i])) {
+            // Handle collision (e.g., game over or losing a segment)
+            score += 10
+        }
+    }
+}
 
 
     canvas.addEventListener('touchstart', PauseHoldStart) 
@@ -277,8 +304,7 @@ window.addEventListener('resize', getZoomFactor);
                 if (!blockHitGround[i]) {
                     block.shape.forEach(part => {
                         // Check if the head of the snake collides with a part of the block
-                        if (head.x === block.x + part.x * gridSize && head.y === block.y + part.y * gridSize) {
-                            score += 10;
+                        if (isSnakeCollidingWithBlock(tetrisBlocks[i])) {
                             // Transform snake into Tetris block
                             transformSnake(block);
                             tetrisBlocks.splice(i, 1); // Remove eaten block
@@ -385,7 +411,7 @@ window.addEventListener('resize', getZoomFactor);
 
             ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas before each frame
             resizeCanvas()
-
+checkCollisions() 
 if (score < 0) {
     score = 0;
 }
