@@ -47,7 +47,7 @@
         const canvasSize = 400;
         let lives = 3;
 let tetrisEnemies = [];
-let enemySpawnChance = 0.5;
+let enemySpawnChance = 1;
         let snake = [{x: 200, y: 200}];
         let direction = {x: 0, y: 0};
         let tetrisBlocks = [];
@@ -537,7 +537,12 @@ function gameLoop() {
         }
         clearLines();
     }
-
+    if (score < 0){
+    score = 0
+    }
+if (snake.length === 0){
+gameOver()
+}
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     resizeCanvas();
 
