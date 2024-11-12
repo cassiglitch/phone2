@@ -45,6 +45,9 @@
         const ctx = canvas.getContext('2d');
         const gridSize = 20; // Grid size for snake and blocks
         const canvasSize = 400;
+        let lives = 3;
+let tetrisEnemies = [];
+let enemySpawnChance = 0.5;
         let snake = [{x: 200, y: 200}];
         let direction = {x: 0, y: 0};
         let tetrisBlocks = [];
@@ -67,6 +70,55 @@
             var antiZoomFactor = 1 / zoomFactor;
 
 
+function generateTetrisEnemy() {
+    if (Math.random() < enemySpawnChance) {
+        const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
+        const enemyColor = 'red'; // Distinct color for enemies
+        return {
+            shape: randomShape,
+            x: Math.floor(Math.random() * (canvas.width / gridSize)) * gridSize,
+            y: 0,
+            color: enemyColor,
+            isEnemy: true,
+            uncurled: false
+        };
+    }
+    return null;
+}
+
+function checkEnemyProximity() {
+    const head = snake[0];
+    for (let enemy of tetrisEnemies) {
+        if (!enemy.uncurled) {
+            const distance = Math.sqrt(
+                Math.pow((head.x - enemy.x) / gridSize, 2) +
+                Math.pow((head.y - enemy.y) / gridSize, 2)
+            );
+            if (distance <= 5) {
+                enemy.uncurled = true;
+                // Change shape to a snake-like formation
+                enemy.shape = [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}];
+            }
+        }
+    }
+}
+
+function handleSnakeEnemyCollision(enemyIndex) {
+    lives--;
+    snake.length = Math.max(1, Math.floor(snake.length / 2)); // Halve snake size, minimum 1
+    tetrisEnemies.splice(enemyIndex, 1);
+
+    if (lives <= 0) {
+        gameOver();
+    }
+}
+
+function gameOver() {
+    pauseGame();
+    createShockwaves(canvas.width/2, canvas.height/2, 'red', 5, 1000, 3, 10, 1, 8);
+    alert("Game Over! Your score: " + score);
+    restartGame();
+}
     canvas.addEventListener('touchstart', PauseHoldStart) 
 let touchStartTime; // Variable to store the time when touch starts
 canvas.addEventListener('touchstart', PauseHoldStart); // Listen for touchstart event
@@ -99,7 +151,15 @@ function PauseHoldEnd() {
             [{x: 1, y: 0}, {x: 2, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}], // S shape
             [{x: 0, y: 0}, {x: 1, y: 0}, {x: 1, y: 1}, {x: 2, y: 1}], // Z shape
         ];
-
+function spawnTetrisBlock() {
+    const enemy = generateTetrisEnemy();
+    if (enemy) {
+        tetrisEnemies.push(enemy);
+    } else {
+        tetrisBlocks.push(generateRandomTetrisBlock());
+    }
+    blockHitGround.push(false);
+}
         // Function to get a random color
         function getRandomColor() {
             const colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF8C00', '#FFD700', '#00FF7F'];
@@ -114,22 +174,70 @@ function PauseHoldEnd() {
             return {shape: randomShape, x: Math.floor(Math.random() * (canvas.width / gridSize)) * gridSize, y: 0, color: blockColor}; // Add color and random position
         }
 
-        // Function to move the Tetris blocks down
-        function moveTetrisBlocks() {
-            for (let i = 0; i < tetrisBlocks.length; i++) {
-                if (!blockHitGround[i]) {
-                    // Make the current block fall
-                    tetrisBlocks[i].y += gridSize;
-
-                    // Check if the block hits the ground or collides with another static block
-                    if (tetrisBlocks[i].y + gridSize > canvas.height || isBlockColliding(tetrisBlocks[i])) {
-                        // Instead of removing it, unrender it and randomize its stats
-                        score -= 1
-                        randomizeBlock(i);
-                    }
-                }
+function moveTetrisBlocks() {
+    for (let i = 0; i < tetrisBlocks.length; i++) {
+        if (!blockHitGround[i]) {
+            tetrisBlocks[i].y += gridSize;
+            if (tetrisBlocks[i].y + gridSize > canvas.height || isBlockColliding(tetrisBlocks[i])) {
+                blockHitGround[i] = true;
+                staticBlocks.push(tetrisBlocks[i]);
+                tetrisBlocks[i] = generateRandomTetrisBlock();
+                score -= 2;
+                blockHitGround[i] = false;
             }
         }
+    }
+
+    for (let i = tetrisEnemies.length - 1; i >= 0; i--) {
+        tetrisEnemies[i].y += gridSize;
+        if (tetrisEnemies[i].y + gridSize > canvas.height) {
+            tetrisEnemies.splice(i, 1);
+        }
+    }
+
+}
+function checkSnakeCollisionWithBlocks() {
+    const head = snake[0];
+
+    // Check collision with regular Tetris blocks
+    for (let i = 0; i < tetrisBlocks.length; i++) {
+        if (checkCollision(head, tetrisBlocks[i])) {
+            handleSnakeBlockCollision(i);
+            return true;
+        }
+    }
+
+    // Check collision with enemies
+    for (let i = tetrisEnemies.length - 1; i >= 0; i--) {
+        if (checkCollision(head, tetrisEnemies[i])) {
+            handleSnakeEnemyCollision(i);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function checkCollision(head, block) {
+    for (let part of block.shape) {
+        const blockPartX = block.x + part.x * gridSize;
+        const blockPartY = block.y + part.y * gridSize;
+        if (head.x === blockPartX && head.y === blockPartY) {
+            return true;
+        }
+    }
+    return false;
+}
+function handleSnakeBlockCollision(blockIndex) {
+    score += 10;
+    const block = tetrisBlocks[blockIndex];
+    transformSnake(block); // Transform the snake into part of the block's shape
+    // Remove the collided block and replace with a new one
+    tetrisBlocks.splice(blockIndex, 1);
+    blockHitGround.splice(blockIndex, 1);
+    tetrisBlocks.push(generateRandomTetrisBlock());
+}
+
         // Function to get the coordinates of each cell in a Tetris block
 function getBlockCellCoordinates(block) {
     const cells = [];
@@ -143,30 +251,37 @@ function getBlockCellCoordinates(block) {
 
 
 
-        // Function to randomize block properties (re-randomize shape, position, color)// Function to check if the snake collides with any Tetris block cells
 function checkSnakeCollisionWithBlocks() {
-    const head = snake[0]; // The head of the snake for collision checking
+    const head = snake[0];
+
+    // Check collision with regular Tetris blocks
     for (let i = 0; i < tetrisBlocks.length; i++) {
-        const blockCells = getBlockCellCoordinates(tetrisBlocks[i]);
-        for (let cell of blockCells) {
-            if (head.x === cell.x && head.y === cell.y) {
-                handleSnakeBlockCollision(i); // Handle collision, update score, etc.
-                return true;
-            }
+        if (checkCollision(head, tetrisBlocks[i])) {
+            handleSnakeBlockCollision(i);
+            return true;
         }
     }
+
+    // Check collision with enemies
+    for (let i = tetrisEnemies.length - 1; i >= 0; i--) {
+        if (checkCollision(head, tetrisEnemies[i])) {
+            handleSnakeEnemyCollision(i);
+            return true;
+        }
+    }
+
     return false;
 }
 
-// Function to handle what happens when the snake collides with a Tetris block
-function handleSnakeBlockCollision(blockIndex) {
-    score += 10;
-    const block = tetrisBlocks[blockIndex];
-    transformSnake(block); // Transform the snake into part of the block's shape
-    // Remove the collided block and replace with a new one
-    tetrisBlocks.splice(blockIndex, 1);
-    blockHitGround.splice(blockIndex, 1);
-    tetrisBlocks.push(generateRandomTetrisBlock());
+function checkCollision(head, block) {
+    for (let part of block.shape) {
+        const blockPartX = block.x + part.x * gridSize;
+        const blockPartY = block.y + part.y * gridSize;
+        if (head.x === blockPartX && head.y === blockPartY) {
+            return true;
+        }
+    }
+    return false;
 }
 
         function randomizeBlock(index) {
@@ -182,7 +297,7 @@ function handleSnakeBlockCollision(blockIndex) {
                         blockHitGround[i] = true;
                         staticBlocks.push(tetrisBlocks[i]);
                         tetrisBlocks[i] = generateRandomTetrisBlock();
-                        score -= 1
+                        score -= 2
                         blockHitGround[i] = false;
                     }
                 }
@@ -214,7 +329,6 @@ function handleSnakeBlockCollision(blockIndex) {
             if (head.y < 0) head.y = canvas.height - gridSize;
             snake.unshift(head);
             snake.pop();
-            checkSnakeCollisionWithBlocks()
         }
 
 
@@ -228,23 +342,29 @@ function handleSnakeBlockCollision(blockIndex) {
 
         // Improved Tetris block drawing function
         function drawTetrisBlocks() {
-            tetrisBlocks.forEach(block => {
-                ctx.fillStyle = block.color;
-                block.shape.forEach(part => {
-                    ctx.fillRect(block.x + part.x * gridSize, block.y + part.y * gridSize, gridSize, gridSize);
-                });
-            });
-        }
-function restartGame(){
-        snake = [{x: 200, y: 200}];
-         direction = {x: 0, y: 0};
-         
-         score = 0;
-         blockFallSpeed = 80; // Speed of blocks falling, will slow down over time
+    tetrisBlocks.forEach(drawBlock);
+    tetrisEnemies.forEach(drawBlock);
+}
+
+function drawBlock(block) {
+    ctx.fillStyle = block.color;
+    block.shape.forEach(part => {
+        ctx.fillRect(block.x + part.x * gridSize, block.y + part.y * gridSize, gridSize, gridSize);
+    });
+}
+function restartGame() {
+    snake = [{x: 200, y: 200}];
+    direction = {x: 0, y: 0};
+    score = 0;
+    lives = 3;
+    blockFallSpeed = 80;
     clearedLines = 0;
-         blockHitGround = [];
- gameSpeed = 100;
- staticBlocks = []
+    blockHitGround = [];
+    gameSpeed = 100;
+    staticBlocks = [];
+    tetrisBlocks = [];
+    tetrisEnemies = [];
+    spawnTetrisBlock();
 }
 
 function closestNumber(n, m) {
@@ -407,38 +527,27 @@ window.addEventListener('resize', getZoomFactor);
         }
 
         // Improved game loop to include line clearing
-        function gameLoop() {
-            if (!paused){
-            moveSnake();
-            moveTetrisBlocks();
-            }
-            clearLines(); // Add the line clearing logic here
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas before each frame
-            resizeCanvas()
-
-if (score < 0) {
-    score = 0;
-}
-if (snake.length <= 0) {
-            pauseGame()
-        createShockwaves(canvas.width/2, canvas.height/2, 'red', 5, 1000, 3, 10, 1, 8)
-            pauseGame()
-            restartGame();
-
-}
-if (score >= 200) {
-    declareVictory();
-}
-
-            drawSnake();
-            drawTetrisBlocks();
-            
-            // Update score and cleared lines
-            document.getElementById('score').textContent = `Score: ${score}`;
-
-            setTimeout(gameLoop, gameSpeed);
+function gameLoop() {
+    if (!paused) {
+        moveSnake();
+        moveTetrisBlocks();
+        checkEnemyProximity();
+        if (checkSnakeCollisionWithBlocks()) {
+            // Collision handled in the function
         }
+        clearLines();
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    resizeCanvas();
+
+    drawSnake();
+    drawTetrisBlocks();
+
+    document.getElementById('score').textContent = `Score: ${score} | Lives: ${lives}`;
+
+    setTimeout(gameLoop, gameSpeed);
+}
 
         // Event listener for keyboard input
         document.addEventListener('keydown', (e) => {
