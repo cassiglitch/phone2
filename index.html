@@ -1,730 +1,378 @@
-</html><!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html>
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TetraSnake Game</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #000;
-            color: white;
-            flex-direction: column;
-            font-family: Arial, sans-serif;
-            overflow: hidden; /* No more scrolling for you! */
-            user-select: none;
-            -webkit-user-select: none; /* For Safari */
-            -moz-user-select: none; /* For Firefox */
-            -ms-user-select: none; /* For Internet Explorer/Edge */
-        }
-        canvas {
-            user-select: none;
-            position: fixed;
-            top: 0; 
-            left: 0
-            border: 2px solid white;
-        }
-        #score {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            font-size: 24px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Elarion Tactics</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f0f0f0; margin: 0; padding: 0; }
+    h1, h2 { text-align: center; }
+    #deckBuilder, #gameArea { max-width: 800px; margin: auto; padding: 20px; background: #fff; margin-top: 20px; border-radius: 5px; }
+    .cardPool, .deckList, .hand, .battlefield, .log { border: 1px solid #ccc; padding: 10px; margin: 10px 0; border-radius: 5px; background: #fafafa; }
+    .card { display: inline-block; border: 1px solid #333; padding: 5px; margin: 5px; background: #eee; cursor: pointer; }
+    button { padding: 8px 12px; margin: 5px; }
+    .section { margin-bottom: 20px; }
+    #gameArea { display: none; }
+    .status { margin: 5px 0; }
+  </style>
 </head>
 <body>
-    <div id="score">Score: 0</div>
-    <canvas id="gameCanvas" width="400" height="400"></canvas>
-    <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const gridSize = 20; // Grid size for snake and blocks
-        const canvasSize = 400;
-        let lives = 3;
-let tetrisEnemies = [];
-let enemySpawnChance = 1;
-        let snake = [{x: 200, y: 200}];
-        let direction = {x: 0, y: 0};
-        let tetrisBlocks = [];
-        let score = 0;
-        let blockFallSpeed = 80; // Speed of blocks falling, will slow down over time
-        let clearedLines = 0;
-        let blockHitGround = [];
-        let gameSpeed = 100;
-        let staticBlocks = []; // Stores blocks that have hit the ground
-        let touchStartX = 0;
-        let touchStartY = 0;
-                let pausetimer = 900;
-
-                let startingGridSize = 20;
-        var deviceWidth, landscape = Math.abs(window.orientation) == 90
-            // workaround for strange screen.height on the iPhone (v3.1.3)
-            if (window.screen.width == 320) deviceWidth = landscape ? 480 : 320
-            else deviceWidth = window.screen[landscape ? "height" : "width"]
-            var zoomFactor = deviceWidth / window.innerWidth;
-            var antiZoomFactor = 1 / zoomFactor;
-
-
-function generateTetrisEnemy() {
-    if (Math.random() < enemySpawnChance) {
-        const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
-        const enemyColor = 'red'; // Distinct color for enemies
-        return {
-            shape: randomShape,
-            x: Math.floor(Math.random() * (canvas.width / gridSize)) * gridSize,
-            y: 0,
-            color: enemyColor,
-            isEnemy: true,
-            uncurled: false
-        };
+  <h1>Elarion Tactics</h1>
+  <!-- Deck Builder Phase -->
+  <div id="deckBuilder">
+    <h2>Deck Builder</h2>
+    <p>Select up to 30 cards for your deck. Click a card to add it.</p>
+    <div class="cardPool" id="cardPool"></div>
+    <h3>Your Deck (<span id="deckCount">0</span>/30)</h3>
+    <div class="deckList" id="deckList"></div>
+    <button id="startGameBtn" disabled>Start Game</button>
+  </div>
+  
+  <!-- Game Area -->
+  <div id="gameArea">
+    <h2>Battlefield</h2>
+    <div class="section">
+      <h3>Your Hero</h3>
+      <div id="playerHero" class="card">Hero HP: <span id="playerHP"></span><br>Mana: <span id="playerMana"></span>/10</div>
+    </div>
+    <div class="section">
+      <h3>Your Hand</h3>
+      <div class="hand" id="playerHand"></div>
+    </div>
+    <div class="section">
+      <h3>Your Battlefield</h3>
+      <div class="battlefield" id="playerField"></div>
+    </div>
+    <hr>
+    <div class="section">
+      <h3>AI Hero</h3>
+      <div id="aiHero" class="card">Hero HP: <span id="aiHP"></span><br>Mana: <span id="aiMana"></span>/10</div>
+    </div>
+    <div class="section">
+      <h3>AI Hand</h3>
+      <div class="hand" id="aiHand"></div>
+    </div>
+    <div class="section">
+      <h3>AI Battlefield</h3>
+      <div class="battlefield" id="aiField"></div>
+    </div>
+    <div class="section">
+      <button id="endTurnBtn">End Turn</button>
+    </div>
+    <div class="section log" id="gameLog" style="height:150px; overflow-y: scroll;"></div>
+  </div>
+  
+  <script>
+  // --------------------------
+  // Data definitions
+  // --------------------------
+  const MAX_DECK_SIZE = 30;
+  
+  // Sample pool of cards available for deck building.
+  // Each card has: id, name, type, cost, and other stats (for minions)
+  const CARD_POOL = [
+    { id: 1, name: "Fire Drake", type: "minion", cost: 3, atk: 3, hp: 4, subtype: "fire" },
+    { id: 2, name: "Frost Guardian", type: "minion", cost: 4, atk: 2, hp: 6, subtype: "water" },
+    { id: 3, name: "Flame Surge", type: "spell", cost: 1, effect: "deal 2 damage" },
+    { id: 4, name: "Mana Boost", type: "spell", cost: 1, effect: "gain 1 extra mana this turn" },
+    { id: 5, name: "Infernal Wastes", type: "biome", cost: 2, effect: "fire buff" },
+    { id: 6, name: "Frozen Wasteland", type: "biome", cost: 2, effect: "water buff" },
+    // More cards could be added...
+  ];
+  
+  // Hero definitions
+  const PLAYER_HERO = { hp: 30, mana: 0, deck: [], hand: [], field: [], discard: [] };
+  const AI_HERO = { hp: 30, mana: 0, deck: [], hand: [], field: [], discard: [] };
+  
+  // Global game state
+  let turn = "player"; // or "ai"
+  let turnCount = 1;
+  
+  // --------------------------
+  // Utility functions
+  // --------------------------
+  function log(message) {
+    const logArea = document.getElementById("gameLog");
+    logArea.innerHTML += message + "<br>";
+    logArea.scrollTop = logArea.scrollHeight;
+  }
+  
+  // Shuffle an array
+  function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
     }
-    return null;
-}
-
-function checkEnemyProximity() {
-    const head = snake[0];
-    for (let enemy of tetrisEnemies) {
-        if (!enemy.uncurled) {
-            const distance = Math.sqrt(
-                Math.pow((head.x - enemy.x) / gridSize, 2) +
-                Math.pow((head.y - enemy.y) / gridSize, 2)
-            );
-            if (distance <= 5) {
-                enemy.uncurled = true;
-                // Change shape to a snake-like formation
-                enemy.shape = [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}];
-            }
+    return array;
+  }
+  
+  // Draw a card from hero's deck; if deck empty, reshuffle discard
+  function drawCard(hero) {
+    if (hero.deck.length === 0) {
+      if (hero.discard.length === 0) {
+        log("No more cards to draw!");
+        return null;
+      }
+      hero.deck = shuffle(hero.discard);
+      hero.discard = [];
+      log("Reshuffled discard pile into deck.");
+    }
+    const card = hero.deck.shift();
+    hero.hand.push(card);
+    return card;
+  }
+  
+  // Render functions for UI
+  function renderDeckBuilder() {
+    const poolDiv = document.getElementById("cardPool");
+    poolDiv.innerHTML = "";
+    CARD_POOL.forEach(card => {
+      const cardDiv = document.createElement("div");
+      cardDiv.className = "card";
+      cardDiv.innerHTML = `<strong>${card.name}</strong><br>Type: ${card.type}<br>Cost: ${card.cost}`;
+      cardDiv.addEventListener("click", () => {
+        if (PLAYER_HERO.deck.length < MAX_DECK_SIZE) {
+          // For deck building, push a copy of the card
+          PLAYER_HERO.deck.push(Object.assign({}, card));
+          updateDeckDisplay();
         }
+      });
+      poolDiv.appendChild(cardDiv);
+    });
+  }
+  
+  function updateDeckDisplay() {
+    const deckList = document.getElementById("deckList");
+    deckList.innerHTML = "";
+    PLAYER_HERO.deck.forEach((card, index) => {
+      const cardDiv = document.createElement("div");
+      cardDiv.className = "card";
+      cardDiv.innerHTML = `<strong>${card.name}</strong>`;
+      // Allow removal
+      cardDiv.addEventListener("click", () => {
+        PLAYER_HERO.deck.splice(index, 1);
+        updateDeckDisplay();
+      });
+      deckList.appendChild(cardDiv);
+    });
+    document.getElementById("deckCount").innerText = PLAYER_HERO.deck.length;
+    document.getElementById("startGameBtn").disabled = PLAYER_HERO.deck.length !== MAX_DECK_SIZE;
+  }
+  
+  // Render game UI
+  function renderGameState() {
+    document.getElementById("playerHP").innerText = PLAYER_HERO.hp;
+    document.getElementById("aiHP").innerText = AI_HERO.hp;
+    document.getElementById("playerMana").innerText = PLAYER_HERO.mana;
+    document.getElementById("aiMana").innerText = AI_HERO.mana;
+    
+    // Render player hand
+    const handDiv = document.getElementById("playerHand");
+    handDiv.innerHTML = "";
+    PLAYER_HERO.hand.forEach((card, index) => {
+      const cardDiv = document.createElement("div");
+      cardDiv.className = "card";
+      cardDiv.innerHTML = `<strong>${card.name}</strong><br>Cost: ${card.cost}`;
+      // Only playable if enough mana
+      if (PLAYER_HERO.mana >= card.cost) {
+        cardDiv.style.borderColor = "green";
+        cardDiv.addEventListener("click", () => {
+          playCard(PLAYER_HERO, card, index);
+        });
+      }
+      handDiv.appendChild(cardDiv);
+    });
+    
+    // Render player field
+    const fieldDiv = document.getElementById("playerField");
+    fieldDiv.innerHTML = "";
+    PLAYER_HERO.field.forEach((card, index) => {
+      const cardDiv = document.createElement("div");
+      cardDiv.className = "card";
+      cardDiv.innerHTML = `<strong>${card.name}</strong><br>ATK: ${card.atk} HP: ${card.hp}`;
+      fieldDiv.appendChild(cardDiv);
+    });
+    
+    // Render AI hand (as hidden cards)
+    const aiHandDiv = document.getElementById("aiHand");
+    aiHandDiv.innerHTML = "";
+    AI_HERO.hand.forEach(card => {
+      const cardDiv = document.createElement("div");
+      cardDiv.className = "card";
+      cardDiv.innerHTML = `<em>Card</em>`;
+      aiHandDiv.appendChild(cardDiv);
+    });
+    
+    // Render AI field
+    const aiFieldDiv = document.getElementById("aiField");
+    aiFieldDiv.innerHTML = "";
+    AI_HERO.field.forEach(card => {
+      const cardDiv = document.createElement("div");
+      cardDiv.className = "card";
+      cardDiv.innerHTML = `<strong>${card.name}</strong><br>ATK: ${card.atk} HP: ${card.hp}`;
+      aiFieldDiv.appendChild(cardDiv);
+    });
+  }
+  
+  // --------------------------
+  // Game Actions
+  // --------------------------
+  // When a card is played from hand
+  function playCard(hero, card, handIndex) {
+    if (hero.mana < card.cost) {
+      log("Not enough mana to play " + card.name);
+      return;
     }
-}
-
-function handleSnakeEnemyCollision(enemyIndex) {
-    lives--;
-    snake.length = Math.max(1, Math.floor(snake.length / 2)); // Halve snake size, minimum 1
-    tetrisEnemies.splice(enemyIndex, 1);
-
-    if (lives <= 0) {
-        gameOver();
+    hero.mana -= card.cost;
+    // Remove from hand
+    hero.hand.splice(handIndex, 1);
+    log(`${turn === "player" ? "Player" : "AI"} played ${card.name}`);
+    
+    // Resolve card based on type
+    if (card.type === "minion") {
+      hero.field.push(Object.assign({}, card));
+    } else if (card.type === "spell") {
+      // For demonstration, handle a couple of effects
+      if (card.name === "Flame Surge") {
+        // Deal 2 damage to a random enemy minion if exists, else hero directly.
+        let target = null;
+        if (turn === "player") {
+          if (AI_HERO.field.length > 0) {
+            target = AI_HERO.field[Math.floor(Math.random()*AI_HERO.field.length)];
+            target.hp -= 2;
+            log("Flame Surge deals 2 damage to enemy minion " + target.name);
+            if (target.hp <= 0) {
+              log("Enemy minion " + target.name + " died.");
+              AI_HERO.discard.push(target);
+              AI_HERO.field = AI_HERO.field.filter(c => c.hp > 0);
+            }
+          } else {
+            AI_HERO.hp -= 2;
+            log("Flame Surge deals 2 damage to the enemy hero.");
+          }
+        } else {
+          if (PLAYER_HERO.field.length > 0) {
+            target = PLAYER_HERO.field[Math.floor(Math.random()*PLAYER_HERO.field.length)];
+            target.hp -= 2;
+            log("Flame Surge deals 2 damage to your minion " + target.name);
+            if (target.hp <= 0) {
+              log("Your minion " + target.name + " died.");
+              PLAYER_HERO.discard.push(target);
+              PLAYER_HERO.field = PLAYER_HERO.field.filter(c => c.hp > 0);
+            }
+          } else {
+            PLAYER_HERO.hp -= 2;
+            log("Flame Surge deals 2 damage to your hero.");
+          }
+        }
+      } else if (card.name === "Mana Boost") {
+        hero.mana = Math.min(10, hero.mana + 1);
+        log("Mana Boost gives an extra mana this turn!");
+      }
+      // Spells go to discard immediately.
+      hero.discard.push(card);
+    } else if (card.type === "biome") {
+      // For simplicity, we treat biome cards as instantly affecting minions on field.
+      log(card.name + " biome is now active. (Effect not fully implemented.)");
+      // For now, send to discard.
+      hero.discard.push(card);
     }
-}
-
-function gameOver() {
-    pauseGame();
-    createShockwaves(canvas.width/2, canvas.height/2, 'red', 5, 1000, 3, 10, 1, 8);
-    alert("Game Over! Your score: " + score);
-    restartGame();
-}
-    canvas.addEventListener('touchstart', PauseHoldStart) 
-let touchStartTime; // Variable to store the time when touch starts
-canvas.addEventListener('touchstart', PauseHoldStart); // Listen for touchstart event
-// Function to handle touchstart event
-function PauseHoldStart(event) {
-    touchStartTime = new Date().getTime(); // Record the time when touch starts
-    setTimeout(checkHold, pausetimer); // Check after 1.5 seconds if the touch is still held
-}
-// Function to check if touch is still held after 1.5 seconds
-function checkHold() {
-    // Check if touch is still active and hasn't moved for 1.5 seconds
-    if (touchStartTime && (new Date().getTime() - touchStartTime >= pausetimer)) {
-        pauseGame(); // Trigger the action if touch is held for 1.5 seconds
-    }
-}
-// Listen for touchend event to reset the timer if touch is released before 1.5 seconds
-canvas.addEventListener('touchend', PauseHoldEnd);
-// Function to handle touchend event
-function PauseHoldEnd() {
-    touchStartTime = null; // Reset the touch start time
-}
-
-        // Shape Definitions (I, O, T, L, J, S, Z)
-        const shapes = [
-            [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}, {x: 3, y: 0}], // I shape
-            [{x: 0, y: 0}, {x: 1, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}], // O shape
-            [{x: 1, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}, {x: 2, y: 1}], // T shape
-            [{x: 0, y: 0}, {x: 1, y: 0}, {x: 2, y: 0}, {x: 2, y: 1}], // L shape
-            [{x: 2, y: 0}, {x: 1, y: 0}, {x: 0, y: 0}, {x: 0, y: 1}], // J shape
-            [{x: 1, y: 0}, {x: 2, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}], // S shape
-            [{x: 0, y: 0}, {x: 1, y: 0}, {x: 1, y: 1}, {x: 2, y: 1}], // Z shape
-        ];
-function spawnTetrisBlock() {
-    const enemy = generateTetrisEnemy();
-    if (enemy) {
-        tetrisEnemies.push(enemy);
+    
+    renderGameState();
+    checkWinCondition();
+  }
+  
+  // End turn process
+  function endTurn() {
+    if (turn === "player") {
+      log("Player turn ended.");
+      turn = "ai";
+      startTurn(AI_HERO);
+      setTimeout(aiTurn, 1000);
     } else {
-        tetrisBlocks.push(generateRandomTetrisBlock());
+      log("AI turn ended.");
+      turn = "player";
+      startTurn(PLAYER_HERO);
+      renderGameState();
     }
-    blockHitGround.push(false);
-}
-        // Function to get a random color
-        function getRandomColor() {
-            const colors = ['#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF8C00', '#FFD700', '#00FF7F'];
-            return colors[Math.floor(Math.random() * colors.length)];
-        }
-
-        // Generate a random Tetris block
-        function generateRandomTetrisBlock() {
-            const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
-            const blockColor = getRandomColor(); // Get random color for the block
-
-            return {shape: randomShape, x: Math.floor(Math.random() * (canvas.width / gridSize)) * gridSize, y: 0, color: blockColor}; // Add color and random position
-        }
-
-function moveTetrisBlocks() {
-    for (let i = 0; i < tetrisBlocks.length; i++) {
-        if (!blockHitGround[i]) {
-            tetrisBlocks[i].y += gridSize;
-            if (tetrisBlocks[i].y + gridSize > canvas.height || isBlockColliding(tetrisBlocks[i])) {
-                blockHitGround[i] = true;
-                staticBlocks.push(tetrisBlocks[i]);
-                tetrisBlocks[i] = generateRandomTetrisBlock();
-                score -= 2;
-                blockHitGround[i] = false;
-            }
-        }
+  }
+  
+  // Start a turn: draw card and increment mana (up to 10)
+  function startTurn(hero) {
+    turnCount++;
+    if (hero.mana < 10) hero.mana = Math.min(10, hero.mana + 1);
+    drawCard(hero);
+    log((turn === "player" ? "Player" : "AI") + "'s turn starts. Mana is now " + hero.mana);
+    renderGameState();
+  }
+  
+  // Basic AI that makes random moves
+  function aiTurn() {
+    // AI will try to play any playable card randomly
+    let playable = AI_HERO.hand.filter(card => card.cost <= AI_HERO.mana);
+    while (playable.length > 0) {
+      let index = AI_HERO.hand.indexOf(playable[Math.floor(Math.random() * playable.length)]);
+      playCard(AI_HERO, AI_HERO.hand[index], index);
+      playable = AI_HERO.hand.filter(card => card.cost <= AI_HERO.mana);
     }
-
-    for (let i = tetrisEnemies.length - 1; i >= 0; i--) {
-        tetrisEnemies[i].y += gridSize;
-        if (tetrisEnemies[i].y + gridSize > canvas.height) {
-            tetrisEnemies.splice(i, 1);
-        }
+    // AI attacks if possible. For simplicity, if AI has any minions and player has none on field,
+    // deal total minion ATK damage directly to player's hero.
+    if (AI_HERO.field.length > 0 && PLAYER_HERO.field.length === 0) {
+      let totalAtk = AI_HERO.field.reduce((sum, card) => sum + card.atk, 0);
+      PLAYER_HERO.hp -= totalAtk;
+      log("AI attacks your hero for " + totalAtk + " damage.");
     }
-
-}
-function checkSnakeCollisionWithBlocks() {
-    const head = snake[0];
-
-    // Check collision with regular Tetris blocks
-    for (let i = 0; i < tetrisBlocks.length; i++) {
-        if (checkCollision(head, tetrisBlocks[i])) {
-            handleSnakeBlockCollision(i);
-            return true;
-        }
+    // End AI turn after a delay
+    setTimeout(endTurn, 1000);
+  }
+  
+  function checkWinCondition() {
+    if (PLAYER_HERO.hp <= 0) {
+      alert("You lost!");
+      location.reload();
+    } else if (AI_HERO.hp <= 0) {
+      alert("You won!");
+      location.reload();
     }
-
-    // Check collision with enemies
-    for (let i = tetrisEnemies.length - 1; i >= 0; i--) {
-        if (checkCollision(head, tetrisEnemies[i])) {
-            handleSnakeEnemyCollision(i);
-            return true;
-        }
+  }
+  
+  // --------------------------
+  // Game Initialization
+  // --------------------------
+  function startGame() {
+    // Hide deck builder, show game area
+    document.getElementById("deckBuilder").style.display = "none";
+    document.getElementById("gameArea").style.display = "block";
+    // Shuffle player's deck
+    PLAYER_HERO.deck = shuffle(PLAYER_HERO.deck);
+    // Draw 5 starting cards for player
+    for (let i = 0; i < 5; i++) {
+      drawCard(PLAYER_HERO);
     }
-
-    return false;
-}
-
-function checkCollision(head, block) {
-    for (let part of block.shape) {
-        const blockPartX = block.x + part.x * gridSize;
-        const blockPartY = block.y + part.y * gridSize;
-        if (head.x === blockPartX && head.y === blockPartY) {
-            return true;
-        }
+    // For the AI, build a deck of 30 random cards from CARD_POOL
+    for (let i = 0; i < MAX_DECK_SIZE; i++) {
+      let randCard = Object.assign({}, CARD_POOL[Math.floor(Math.random() * CARD_POOL.length)]);
+      AI_HERO.deck.push(randCard);
     }
-    return false;
-}
-function handleSnakeBlockCollision(blockIndex) {
-    score += 10;
-    const block = tetrisBlocks[blockIndex];
-    transformSnake(block); // Transform the snake into part of the block's shape
-    // Remove the collided block and replace with a new one
-    tetrisBlocks.splice(blockIndex, 1);
-    blockHitGround.splice(blockIndex, 1);
-    tetrisBlocks.push(generateRandomTetrisBlock());
-}
-
-        // Function to get the coordinates of each cell in a Tetris block
-function getBlockCellCoordinates(block) {
-    const cells = [];
-    block.shape.forEach(part => {
-        const cellX = block.x + part.x * gridSize;
-        const cellY = block.y + part.y * gridSize;
-        cells.push({x: cellX, y: cellY});
-    });
-    return cells;
-}
-
-
-
-function checkSnakeCollisionWithBlocks() {
-    const head = snake[0];
-
-    // Check collision with regular Tetris blocks
-    for (let i = 0; i < tetrisBlocks.length; i++) {
-        if (checkCollision(head, tetrisBlocks[i])) {
-            handleSnakeBlockCollision(i);
-            return true;
-        }
+    AI_HERO.deck = shuffle(AI_HERO.deck);
+    // Draw 5 starting cards for AI
+    for (let i = 0; i < 5; i++) {
+      drawCard(AI_HERO);
     }
-
-    // Check collision with enemies
-    for (let i = tetrisEnemies.length - 1; i >= 0; i--) {
-        if (checkCollision(head, tetrisEnemies[i])) {
-            handleSnakeEnemyCollision(i);
-            return true;
-        }
-    }
-
-    return false;
-}
-
-function checkCollision(head, block) {
-    for (let part of block.shape) {
-        const blockPartX = block.x + part.x * gridSize;
-        const blockPartY = block.y + part.y * gridSize;
-        if (head.x === blockPartX && head.y === blockPartY) {
-            return true;
-        }
-    }
-    return false;
-}
-
-        function randomizeBlock(index) {
-            tetrisBlocks[index] = generateRandomTetrisBlock(); // Re-randomize block
-            blockHitGround[index] = false; // Reset the ground hit status
-        }
-        // Function to move the Tetris blocks down
-        function moveTetrisBlocks() {
-            for (let i = 0; i < tetrisBlocks.length; i++) {
-                if (!blockHitGround[i]) {
-                    tetrisBlocks[i].y += gridSize;
-                    if (tetrisBlocks[i].y + gridSize > canvas.height || isBlockColliding(tetrisBlocks[i])) {
-                        blockHitGround[i] = true;
-                        staticBlocks.push(tetrisBlocks[i]);
-                        tetrisBlocks[i] = generateRandomTetrisBlock();
-                        score -= 2
-                        blockHitGround[i] = false;
-                    }
-                }
-            }
-        }
-
-        // Improved collision function
-        function isBlockColliding(block) {
-            for (let staticBlock of staticBlocks) {
-                for (let part of block.shape) {
-                    const partX = block.x + part.x * gridSize;
-                    const partY = block.y + part.y * gridSize;
-                    for (let staticPart of staticBlock.shape) {
-                        const staticPartX = staticBlock.x + staticPart.x * gridSize;
-                        const staticPartY = staticBlock.y + staticPart.y * gridSize;
-                        if (partX === staticPartX && partY === staticPartY) return true;
-                    }
-                }
-            }
-            return false;
-        }
-
-        // Snake movement and eating logic
-        function moveSnake() {
-            const head = {x: snake[0].x + direction.x, y: snake[0].y + direction.y};
-            if (head.x >= canvas.width) head.x = 0;
-            if (head.x < 0) head.x = canvas.width - gridSize;
-            if (head.y >= canvas.height) head.y = 0;
-            if (head.y < 0) head.y = canvas.height - gridSize;
-            snake.unshift(head);
-            snake.pop();
-        }
-
-
-        // Improved Snake drawing function to render each part as a grid-aligned block
-        function drawSnake() {
-            ctx.fillStyle = 'lime';
-            for (let i = 0; i < snake.length; i++) {
-                ctx.fillRect(snake[i].x, snake[i].y, gridSize, gridSize);
-            }
-        }
-
-        // Improved Tetris block drawing function
-        function drawTetrisBlocks() {
-    tetrisBlocks.forEach(drawBlock);
-    tetrisEnemies.forEach(drawBlock);
-}
-
-function drawBlock(block) {
-    ctx.fillStyle = block.color;
-    block.shape.forEach(part => {
-        ctx.fillRect(block.x + part.x * gridSize, block.y + part.y * gridSize, gridSize, gridSize);
-    });
-}
-function restartGame() {
-    snake = [{x: 200, y: 200}];
-    direction = {x: 0, y: 0};
-    score = 0;
-    lives = 3;
-    blockFallSpeed = 80;
-    clearedLines = 0;
-    blockHitGround = [];
-    gameSpeed = 100;
-    staticBlocks = [];
-    tetrisBlocks = [];
-    tetrisEnemies = [];
-    spawnTetrisBlock();
-}
-
-function closestNumber(n, m) {
-    // Find the quotient
-    let q = Math.floor(n / m);
-
-    // 1st possible closest number
-    let n1 = m * q;
-
-    // 2nd possible closest number
-    let n2 = m * (q + 1);
-
-    // Ensure that n1 does not exceed n
-    if (n1 > n) {
-        return n;
-    }
-
-    // Ensure that n2 does not exceed n
-    if (n2 > n) {
-        return n1;
-    }
-
-    // Return the closest multiple of m to n
-    return Math.abs(n - n1) < Math.abs(n - n2) ? n1 : n2;
-}
-
-function resizeCanvas() {
-    
-    const canvasWidth = closestNumber(window.innerWidth, gridSize);
-    const canvasHeight = closestNumber(window.innerHeight, gridSize);
-    // Remove out-of-bounds elements from mirrors array
-    
-    // Set canvas width and height
-    canvas.width = canvasWidth;
-    canvas.height = canvasHeight;
-        }
-        function getZoomFactor() {
-            var deviceWidth, landscape = Math.abs(window.orientation) == 90
-            // workaround for strange screen.height on the iPhone (v3.1.3)
-            if (window.screen.width == 320) deviceWidth = landscape ? 480 : 320
-            else deviceWidth = window.screen[landscape ? "height" : "width"]
-            var zoomFactor = deviceWidth / window.innerWidth;
-            var antiZoomFactor = 1 / zoomFactor;
-          
-            // Apply zoom and anti-zoom factors to grid size
-            gridSize = Math.max(0, Math.ceil(startingGridSize * antiZoomFactor));
-            document.getElementById('scoreDisplay').style.top = (20 * antiZoomFactor) + 'px';
-            document.documentElement.style.setProperty('--grid-size', (20 * antiZoomFactor) + 'px');
-            psize = gridSize;
-        }
-
-        setInterval(getZoomFactor, 1); // Adjust the interval as needed
-
-        // Clean up the interval when the window is closed
-        window.addEventListener('beforeunload', () => {
-            clearInterval(gameInterval);
-        });
-// Function to resize the canvas height based on viewport height
-function resizeCanvasHeight() {
-    const windowHeight = window.innerHeight; // Get the viewport height
-    const canvasHeight = closestNumber(window.innerHeight, gridSize);; // Adjust the canvas height to be a multiple of gridSize
-    canvas.height = canvasHeight; // Set the canvas height
-}
-// Call the resizeCanvasHeight function initially to set the canvas height
-resizeCanvasHeight();
-// Call the resizeCanvasHeight function whenever the window is resized
-window.addEventListener('resize', resizeCanvasHeight);
-                function adjustForZoom() {
-            // Calculate the zoom factor
-            const zoomFactor = window.innerWidth / window.screen.availWidth;
-            // Adjust the grid size based on the zoom factor
-            document.documentElement.style.setProperty('--grid-size', (20 * antiZoomFactor) + 'px');
-        }
-window.addEventListener('resize', getZoomFactor);
-        // Call the adjustForZoom function initially and on window resize
-        window.addEventListener('resize', adjustForZoom);
-        adjustForZoom();
-
-
-        // Function to transform the snake into a Tetris block
-        function transformSnake(block) {
-            // Make snake transform into the shape of the Tetris block
-            for (let part of block.shape) {
-                snake.push({x: block.x + part.x * gridSize, y: block.y + part.y * gridSize});
-            }
-        }
-
-        // Function to spawn a new Tetris block
-        function spawnTetrisBlock() {
-            tetrisBlocks.push(generateRandomTetrisBlock());
-            blockHitGround.push(false); // Initialize hit ground status for the new block
-        }
-
-        // Function to check and clear full lines or columns
-        function clearLines() {
-            const filledRows = [];
-            const filledColumns = [];
-            let segmentsRemoved = 0; // Track segments removed
-
-            // Check for filled rows in the snake's body
-            for (let y = 0; y < canvas.height; y += gridSize) {
-                let isFilled = true;
-
-                // Check if the row is filled with snake parts
-                for (let x = 0; x < canvas.width; x += gridSize) {
-                    if (!snake.some(segment => segment.x === x && segment.y === y)) {
-                        isFilled = false;
-                        break;
-                    }
-                }
-
-                if (isFilled) {
-                    filledRows.push(y);
-                }
-            }
-
-            // Check for filled columns in the snake's body
-            for (let x = 0; x < canvas.width; x += gridSize) {
-                let isFilled = true;
-
-                // Check if the column is filled with snake parts
-                for (let y = 0; y < canvas.height; y += gridSize) {
-                    if (!snake.some(segment => segment.x === x && segment.y === y)) {
-                        isFilled = false;
-                        break;
-                    }
-                }
-
-                if (isFilled) {
-                    filledColumns.push(x);
-                }
-            }
-
-            // Remove snake segments from filled rows and decrease the score
-            for (let row of filledRows) {
-                const segmentsToRemove = snake.filter(segment => segment.y === row);
-                segmentsRemoved += segmentsToRemove.length;
-                snake = snake.filter(segment => segment.y !== row); // Remove segments in the filled row
-                clearedLines++; // Increment cleared lines
-            }
-
-            // Remove snake segments from filled columns and decrease the score
-            for (let col of filledColumns) {
-                const segmentsToRemove = snake.filter(segment => segment.x === col);
-                segmentsRemoved += segmentsToRemove.length;
-                snake = snake.filter(segment => segment.x !== col); // Remove segments in the filled column
-                clearedLines++; // Increment cleared lines
-            }
-
-            // Decrease score for every segment removed
-            score -= segmentsRemoved * 5;
-
-            // Shift the snake down after clearing lines
-            snake.forEach(segment => {
-                if (segment.y < filledRows[0] && segment.x < filledColumns[0]) {
-                    return; // Don't move segments in already cleared rows and columns
-                }
-                segment.y += gridSize * (filledRows.length + filledColumns.length);
-            });
-        }
-
-        // Improved game loop to include line clearing
-function gameLoop() {
-    if (!paused) {
-        moveSnake();
-        moveTetrisBlocks();
-        checkEnemyProximity();
-        if (checkSnakeCollisionWithBlocks()) {
-            // Collision handled in the function
-        }
-        clearLines();
-    }
-    if (score < 0){
-    score = 0
-    }
-if (snake.length === 0){
-gameOver()
-}
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    resizeCanvas();
-
-    drawSnake();
-    drawTetrisBlocks();
-
-    document.getElementById('score').textContent = `Score: ${score} | Lives: ${lives}`;
-
-    setTimeout(gameLoop, gameSpeed);
-}
-
-        // Event listener for keyboard input
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowUp') direction = {x: 0, y: -gridSize};
-            if (e.key === 'ArrowDown') direction = {x: 0, y: gridSize};
-            if (e.key === 'ArrowLeft') direction = {x: -gridSize, y: 0};
-            if (e.key === 'ArrowRight') direction = {x: gridSize, y: 0};
-        });
-        
-        // Touch controls for mobile devices
-        canvas.addEventListener('touchstart', function(e) {
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-        });
-
-        canvas.addEventListener('touchmove', function(e) {
-            const touchMoveX = e.touches[0].clientX;
-            const touchMoveY = e.touches[0].clientY;
-
-            const diffX = touchMoveX - touchStartX;
-            const diffY = touchMoveY - touchStartY;
-
-            if (Math.abs(diffX) > Math.abs(diffY)) {
-                // Horizontal swipe
-                if (diffX > 0) direction = {x: gridSize, y: 0}; // Right
-                else direction = {x: -gridSize, y: 0}; // Left
-            } else {
-                // Vertical swipe
-                if (diffY > 0) direction = {x: 0, y: gridSize}; // Down
-                else direction = {x: 0, y: -gridSize}; // Up
-            }
-        });
-let paused = false;
-
-let pressTimeout;
-let screenHoldTimeout;
-
-// Function to toggle the paused state
-function pauseGame() {
-    paused = !paused;
-    console.log("Paused:", paused);
-}
-
-// Event listener for pressing the "P" key
-document.addEventListener("keydown", (event) => {
-    if (event.key === "p" || event.key === "P") {
-        pauseGame();
-    }
-});
-
-// Event listener for holding down anywhere on the screen
-document.addEventListener("mousedown", () => {
-    screenHoldTimeout = setTimeout(() => {
-        pauseGame();
-    }, 2000); // 2 seconds
-});
-
-document.addEventListener("mouseup", () => {
-    clearTimeout(screenHoldTimeout);
-});
-
-function createShockwaves(x, y, color, numShockwaves = 1, shockwaveDelay = 500, minSize = 5, maxSize = 20, minSpeed = 2, maxSpeed = 5) {
-            const shockwaves = [];  // Store shockwave instances
-
-            // Create shockwaves and particles for each
-            function createWave() {
-                const particles = [];
-                const numParticles = 100;
-
-                // Create particles for this shockwave
-                for (let i = 0; i < numParticles; i++) {
-                    const angle = Math.random() * Math.PI * 2; // Random angle
-                    const speed = Math.random() * (maxSpeed - minSpeed) + minSpeed; // Random speed
-
-                    particles.push({
-                        x: x,
-                        y: y,
-                        angle: angle,
-                        speed: speed,
-                        size: Math.random() * (maxSize - minSize) + minSize,
-                        color: color,
-                        life: Math.random() * 50 + 50, // Random life for each particle
-                    });
-                }
-
-                // Shockwave object
-                return {
-                    particles: particles,
-                    radius: 0,
-                    speed: Math.random() * (maxSpeed - minSpeed) + minSpeed, // Speed for shockwave expansion
-                    color: color,
-                    life: 100, // Duration of shockwave expansion
-                };
-            }
-
-            // Create multiple shockwaves with a delay
-            let shockwaveCount = 0;
-            function startShockwaves() {
-                if (shockwaveCount < numShockwaves) {
-                    shockwaves.push(createWave());
-                    shockwaveCount++;
-                    setTimeout(startShockwaves, shockwaveDelay);  // Create the next shockwave after delay
-                }
-            }
-
-            startShockwaves(); // Start creating shockwaves
-
-            // Animation loop for shockwaves and particles
-            function animateShockwaves() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas
-
-                shockwaves.forEach((wave, index) => {
-                    if (wave.life > 0) {
-                        wave.radius += wave.speed; // Expand the shockwave radius
-                        wave.life--; // Reduce shockwave life
-
-                        // Draw the expanding shockwave (particles within it)
-                        wave.particles.forEach(particle => {
-                            // Move particles outward based on their angle and speed
-                            particle.x += Math.cos(particle.angle) * particle.speed;
-                            particle.y += Math.sin(particle.angle) * particle.speed;
-                            particle.size += 0.1; // Increase particle size over time
-                            particle.life--;
-
-                            // Draw particle
-                            ctx.beginPath();
-                            ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-                            ctx.fillStyle = particle.color;
-                            ctx.fill();
-
-                            // Remove dead particles
-                            if (particle.life <= 0) {
-                                wave.particles.splice(wave.particles.indexOf(particle), 1);
-                            }
-                        });
-
-                        // Draw shockwave itself (outer edge)
-                        ctx.beginPath();
-                        ctx.arc(x, y, wave.radius, 0, Math.PI * 2);
-                        ctx.strokeStyle = wave.color;
-                        ctx.lineWidth = 3;
-                        ctx.stroke();
-                    } else {
-                        shockwaves.splice(index, 1); // Remove the shockwave after it finishes
-                    }
-                });
-
-                // Continue the animation if there are still shockwaves or particles
-                if (shockwaves.length > 0) {
-                    requestAnimationFrame(animateShockwaves);
-                }
-            }
-
-            animateShockwaves(); // Start animation
-        }
-
-        // Initialize the game
-        function init() {
-            spawnTetrisBlock(); // Initial Tetris block spawn
-            gameLoop(); // Start the game loop
-        }
-
-        function declareVictory() {
-            pauseGame()
-            
-// Trigger explosion at center of canvas with customizable color
-        createShockwaves(snake[0].x, snake[0].y, 'gold', 2, 1000, 3, 10, 1, 8)
-            pauseGame()
-            restartGame();
-        }
-
-        init(); // Start the game
-    </script>
+    // Initialize mana for both heroes
+    PLAYER_HERO.mana = 1;
+    AI_HERO.mana = 1;
+    renderGameState();
+    log("Game started. Your turn!");
+  }
+  
+  // --------------------------
+  // Event Listeners
+  // --------------------------
+  document.getElementById("startGameBtn").addEventListener("click", startGame);
+  document.getElementById("endTurnBtn").addEventListener("click", endTurn);
+  
+  // Initialize deck builder on page load
+  renderDeckBuilder();
+  </script>
 </body>
 </html>
